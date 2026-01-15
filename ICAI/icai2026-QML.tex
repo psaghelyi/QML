@@ -5,7 +5,7 @@
 
 \title{Formal Verification of Questionnaire Logic Using SMT Solvers}
 
-\author{Peter Saghelyi \inst{1}}
+\author{Peter Saghelyi \inst{1}, Peter Berecky \inst{1}}
 
 \institute{\inst{1} ELTE Faculty of Informatics, Budapest, Hungary\\ \email{peter.saghelyi@inf.elte.hu}}
 
@@ -41,9 +41,9 @@ Let $B := \bigwedge_{i=1}^n D_i(S_i)$ denote the base constraint. We classify pr
 
 To prove that a questionnaire is correctly designed and well-formatted, we examine four critical properties that capture common design errors.
 
-\textbf{Isolated Questions.} An item is isolated when its precondition can never be satisfied under any combination of valid answers. This occurs when the logical conditions for displaying a question are internally contradictory or conflict with domain constraints. For example, a question requiring both ``age $< 18$'' and ``years of employment $> 20$'' can never be reached. We detect isolation by checking whether $B \wedge P_i$ is satisfiable, where $B$ represents domain constraints and $P_i$ the precondition.
+\textbf{Isolated Questions.} An item is isolated when its precondition can never be satisfied under any combination of valid answers. This occurs when the logical conditions for displaying a question are internally contradictory or conflict with domain constraints. For example, a question requiring both $\mathit{age} < 18$ and $\mathit{years\_employed} > 20$ can never be reached. We detect isolation by checking whether $B \wedge P_i$ is satisfiable, where $B$ represents domain constraints and $P_i$ the precondition.
 
-\textbf{Dead Ends.} Even when per-item analysis shows a question as reachable (i.e. not isolated), accumulated constraints from predecessor items may render it unreachable in practice. Consider a questionnaire where the first question requires income $\geq 50000$ to proceed, while a later question targets respondents with income $< 30000$. Each condition is individually satisfiable, but no respondent can satisfy both. We detect dead ends through path-based validation, checking reachability under accumulated postconditions from all predecessor items in dependency order.
+\textbf{Dead Ends.} Even when per-item analysis shows a question as reachable (i.e. not isolated), accumulated constraints from predecessor items may render it unreachable in practice. Consider a questionnaire where the first question requires $\mathit{income} \ge 50000$ to proceed, while a later question targets respondents with $\mathit{income} < 30000$. Each condition is individually satisfiable, but no respondent can satisfy both. We detect dead ends through path-based validation, checking reachability under accumulated postconditions from all predecessor items in dependency order.
 
 \textbf{Circular Dependencies.} When item $A$'s precondition references item $B$'s outcome, and $B$'s precondition references $A$'s outcome, neither can be evaluated first. We construct a dependency graph where edges represent data flow between items through outcome variables and intermediate computations. Kahn's algorithm for topological sorting detects cycles: if edges remain after the algorithm terminates, those edges form circular dependencies that make the questionnaire impossible to evaluate.
 

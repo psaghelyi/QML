@@ -1,4 +1,4 @@
-TEX := icai2026-peter-saghelyi
+TEX := icai2026-QML
 PDF := $(TEX).pdf
 
 .DEFAULT_GOAL := pdf
