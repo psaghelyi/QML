@@ -1,0 +1,60 @@
+
+% Extended Abstract for ICAI 2026
+
+\documentclass[abstract]{icai2026} % DO NOT EDIT the class file icai2026.cls!
+
+\title{Formal Verification of Questionnaire Logic Using SMT Solvers}
+
+\author{Peter Saghelyi \inst{1}}
+
+\institute{\inst{1} ELTE Faculty of Informatics, Budapest, Hungary\\ \email{peter.saghelyi@inf.elte.hu}}
+
+\addbibresource{references.bib}
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+
+Modern questionnaire systems, particularly those enhanced with artificial intelligence, can generate surveys with conditional logic of unprecedented complexity. While traditional manually-designed surveys remain manageable for human review, AI-generated questionnaires present challenges including exponential path proliferation, hidden logical contradictions, and circular dependencies that exceed human comprehension. Despite decades of active research on questionnaire structure and validation~\cite{willenborg1988computational,fellegi1976systematic,schiopu2015survey,elliott2012application,fagan1988census}, prior approaches have focused on documentation, visualization, and path enumeration—none providing a direct method for formally proving questionnaire correctness. This work presents a formal, declarative framework for questionnaire specification and automated verification using SMT solvers, offering mathematical guarantees that testing-based approaches cannot provide.
+
+\section{Formal Questionnaire Model}
+
+We formalize questionnaires using preconditions and postconditions as logical formulas, inspired by Hoare Logic~\cite{hoare1969axiomatic}. This declarative paradigm treats questionnaires as collections of logical relationships where flow emerges dynamically based on respondent answers.
+
+\begin{definition}
+A \textbf{questionnaire} $\mathcal{G}$ is a tuple $(\mathcal{I}, \mathbf{S}, \mathcal{D}, \mathcal{P}, \mathcal{Q}, I_{\mathrm{start}})$ where:
+\begin{itemize}
+    \item $\mathcal{I} = \{I_1, \dots, I_n\}$ is a finite set of items (a.k.a. questions)
+    \item $\mathbf{S} = (S_1, \dots, S_n)$ is a vector of outcome variables representing the actual responses
+    \item $\mathcal{D} = (D_1, \dots, D_n)$ specifies domain constraints for each $S_i$
+    \item $\mathcal{P} = (P_1, \dots, P_n)$ where $P_i$ is the precondition (Boolean formula determining item visibility)
+    \item $\mathcal{Q} = (Q_1, \dots, Q_n)$ where $Q_i$ is the postcondition (constraint on valid responses)
+    \item $I_{\mathrm{start}} \in \mathcal{I}$ is the designated starting item
+\end{itemize}
+\end{definition}
+
+Let $B := \bigwedge_{i=1}^n D_i(S_i)$ denote the base constraint. We classify precondition reachability as: \textbf{ALWAYS} if $\mathrm{UNSAT}(B \wedge \neg P_i)$, \textbf{NEVER} if $\mathrm{UNSAT}(B \wedge P_i)$, and \textbf{CONDITIONAL} otherwise. Postconditions are classified relative to their preconditions as \textbf{TAUTOLOGICAL}, \textbf{CONSTRAINING}, or \textbf{INFEASIBLE}.
+
+\section{Comprehensive Validation}
+
+To prove that a questionnaire is correctly designed and well-formatted, we examine four critical properties that capture common design errors.
+
+\textbf{Isolated Questions.} An item is isolated when its precondition can never be satisfied under any combination of valid answers. This occurs when the logical conditions for displaying a question are internally contradictory or conflict with domain constraints. For example, a question requiring both ``age $< 18$'' and ``years of employment $> 20$'' can never be reached. We detect isolation by checking whether $B \wedge P_i$ is satisfiable, where $B$ represents domain constraints and $P_i$ the precondition.
+
+\textbf{Dead Ends.} Even when per-item analysis shows a question as reachable (i.e. not isolated), accumulated constraints from predecessor items may render it unreachable in practice. Consider a questionnaire where the first question requires income $\geq 50000$ to proceed, while a later question targets respondents with income $< 30000$. Each condition is individually satisfiable, but no respondent can satisfy both. We detect dead ends through path-based validation, checking reachability under accumulated postconditions from all predecessor items in dependency order.
+
+\textbf{Circular Dependencies.} When item $A$'s precondition references item $B$'s outcome, and $B$'s precondition references $A$'s outcome, neither can be evaluated first. We construct a dependency graph where edges represent data flow between items through outcome variables and intermediate computations. Kahn's algorithm for topological sorting detects cycles: if edges remain after the algorithm terminates, those edges form circular dependencies that make the questionnaire impossible to evaluate.
+
+\textbf{Contradictory Logical Constraints.} Postconditions from multiple items may collectively create unsatisfiable requirements. We define the global satisfiability formula $\mathcal{F} := B \wedge \bigwedge_{i=1}^n (P_i \Rightarrow Q_i)$ and verify that at least one valid completion exists. If $\mathcal{F}$ is unsatisfiable, the questionnaire contains conflicting constraints that prevent any respondent from completing it successfully.
+
+\section{The QML Language and SMT-Based Verification}
+
+We introduce the Questionnaire Markup Language (QML), a YAML-based specification language where preconditions and postconditions are expressed as Python boolean expressions, and items may contain imperative code blocks for intermediate computations. Our compiler transforms these specifications into Z3 SMT constraints through Single Static Assignment (SSA) transformation, conditional branching transformation, and bounded loop unrolling.
+
+What distinguishes this approach is the unified analysis of both declarative conditions and imperative code blocks. Variables introduced in code blocks flow through the dependency graph alongside outcome variables, enabling the SMT solver to reason about the complete questionnaire logic. Despite questionnaire consistency checking being NP-complete~\cite{willenborg1995testing}, modern SMT solvers handle real-world questionnaires effectively, providing mathematical guarantees that testing-based approaches cannot offer~\cite{demoura2008z3}.
+
+\printbibliography
+
+\end{document}

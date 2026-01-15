@@ -1,0 +1,450 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Questionnaire Markup Language",
+  "type": "object",
+  "required": [
+    "qmlVersion",
+    "questionnaire"
+  ],
+  "properties": {
+    "qmlVersion": {
+      "type": "string"
+    },
+    "questionnaire": {
+      "type": "object",
+      "$ref": "#/definitions/Questionnaire"
+    }
+  },
+  "definitions": {
+    "Questionnaire": {
+      "type": "object",
+      "required": [
+        "blocks"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "codeInit": {
+          "description": "Code block which is executed before the questionnaire is started",
+          "$ref": "#/definitions/CodeBlock"
+        },
+        "precondition": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Condition"
+          }
+        },
+        "postcondition": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Condition"
+          }
+        },
+        "blocks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/Block"
+          }
+        }
+      }
+    },
+    "Block": {
+      "type": "object",
+      "required": [
+        "id",
+        "items"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "precondition": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Condition"
+          }
+        },
+        "postcondition": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Condition"
+          }
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/Item"
+          }
+        }
+      }
+    },
+    "Item": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "Comment",
+            "Question",
+            "QuestionGroup",
+            "MatrixQuestion"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "precondition": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Condition"
+          }
+        },
+        "postcondition": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Condition"
+          }
+        },
+        "codeBlock": {
+          "description": "Code block which is executed after the item is evaluated",
+          "$ref": "#/definitions/CodeBlock"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Comment"
+              }
+            }
+          },
+          "then": {}
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Question"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "input": {
+                "$ref": "#/definitions/Input"
+              }
+            },
+            "required": [
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "QuestionGroup"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "input": {
+                "$ref": "#/definitions/Input"
+              }
+            },
+            "required": [
+              "questions",
+              "input"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "MatrixQuestion"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "input": {
+                "$ref": "#/definitions/Input"
+              }
+            },
+            "required": [
+              "rows",
+              "columns",
+              "input"
+            ]
+          }
+        }
+      ]
+    },
+    "Labels": {
+      "type": "object",
+      "description": "Map of integer values to labels",
+      "propertyNames": {
+        "type": "integer"
+      },
+      "additionalProperties": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "CodeBlock": {
+      "description": "Python code block",
+      "type": "string"
+    },
+    "Condition": {
+      "type": "object",
+      "required": [
+        "predicate"
+      ],
+      "properties": {
+        "predicate": {
+          "description": "Expression that must be true for the condition to be met",
+          "type": "string"
+        },
+        "hint": {
+          "description": "Message to be displayed if the condition is not met",
+          "type": "string"
+        }
+      }
+    },
+    "Input": {
+      "type": "object",
+      "required": [
+        "control"
+      ],
+      "properties": {
+        "control": {
+          "type": "string",
+          "enum": [
+            "Switch",
+            "Radio",
+            "Dropdown",
+            "Checkbox",
+            "Editbox",
+            "Slider",
+            "Range"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "const": "Switch"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "off": {
+                "type": "string"
+              },
+              "on": {
+                "type": "string"
+              },
+              "default": {
+                "type": "integer",
+                "enum": [0, 1],
+                "description": "Default value for the switch: 0 for off, 1 for on"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "const": "Radio"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "labels": {
+                "$ref": "#/definitions/Labels"
+              },
+              "default": {
+                "type": "integer",
+                "description": "Default value for the radio control. Must be one of the keys defined in the labels object."
+              }
+            },
+            "required": [
+              "labels"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "const": "Checkbox"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "labels": {
+                "$ref": "#/definitions/Labels"
+              },
+              "default": {
+                "type": "integer",
+                "description": "Default value for the checkbox control. Typically a bit mask of the selected options."
+              }
+            },
+            "required": [
+              "labels"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "const": "Dropdown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "labels": {
+                "$ref": "#/definitions/Labels"
+              },
+              "left": {
+                "type": "string"
+              },
+              "right": {
+                "type": "string"
+              },
+              "default": {
+                "type": "integer",
+                "description": "Default value for the dropdown control. Must be one of the keys defined in the labels object."
+              }
+            },
+            "required": [
+              "labels"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "const": "Editbox"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "min": {
+                "type": "integer",
+                "description": "Minimum allowed value"
+              },
+              "max": {
+                "type": "integer",
+                "description": "Maximum allowed value"
+              },
+              "left": {
+                "type": "string"
+              },
+              "right": {
+                "type": "string"
+              },
+              "default": {
+                "type": "integer",
+                "description": "Default value for the editbox. Must be between min and max (inclusive)."
+              }              
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "enum": [
+                  "Slider",
+                  "Range"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "min": {
+                "type": "integer",
+                "description": "Minimum allowed value"
+              },
+              "max": {
+                "type": "integer",
+                "description": "Maximum allowed value"
+              },
+              "step": {
+                "type": "integer",
+                "description": "Step size for the slider"
+              },
+              "default": {
+                "type": "integer",
+                "description": "Default value for the slider. Must be between min and max (inclusive)."
+              },
+              "left": {
+                "type": "string"
+              },
+              "right": {
+                "type": "string"
+              },
+              "labels": {
+                "$ref": "#/definitions/Labels"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

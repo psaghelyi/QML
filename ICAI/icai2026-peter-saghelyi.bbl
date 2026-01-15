@@ -1,0 +1,296 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nty/global//global/global/global}
+    \entry{elliott2012application}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=1f735deb416bf3175f139e2b09d50cee}{%
+           family={Elliott},
+           familyi={E\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{fullhash}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{fullhashraw}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{bibnamehash}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{authorbibnamehash}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{authornamehash}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{authorfullhash}{1f735deb416bf3175f139e2b09d50cee}
+      \strng{authorfullhashraw}{1f735deb416bf3175f139e2b09d50cee}
+      \field{sortinit}{E}
+      \field{sortinithash}{8da8a182d344d5b9047633dfc0cc9131}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{International Journal of Market Research}
+      \field{number}{4}
+      \field{title}{The Application of Graph Theory to the Development and Testing of Survey Instruments}
+      \field{volume}{54}
+      \field{year}{2012}
+      \field{pages}{545\bibrangedash 570}
+      \range{pages}{26}
+      \verb{doi}
+      \verb 10.2501/IJMR-54-4-545-570
+      \endverb
+    \endentry
+    \entry{fagan1988census}{inproceedings}{}{}
+      \name{author}{2}{}{%
+        {{hash=742ff7de4ee28986c0675024dd89fa6a}{%
+           family={Fagan},
+           familyi={F\bibinitperiod},
+           given={Jeffrey\bibnamedelima T.},
+           giveni={J\bibinitperiod\bibinitdelim T\bibinitperiod}}}%
+        {{hash=841e98e6cb2b2598301415f8dc67be62}{%
+           family={Greenberg},
+           familyi={G\bibinitperiod},
+           given={Brian\bibnamedelima V.},
+           giveni={B\bibinitperiod\bibinitdelim V\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {American Statistical Association}%
+      }
+      \strng{namehash}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{fullhash}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{fullhashraw}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{bibnamehash}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{authorbibnamehash}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{authornamehash}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{authorfullhash}{e631b2a501dbdb8ead0265e770f01435}
+      \strng{authorfullhashraw}{e631b2a501dbdb8ead0265e770f01435}
+      \field{sortinit}{F}
+      \field{sortinithash}{2638baaa20439f1b5a8f80c6c08a13b4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the Section on Survey Research Methods}
+      \field{title}{Using Graph Theory to Analyze Skip Patterns in Questionnaires}
+      \field{year}{1988}
+      \field{pages}{193\bibrangedash 198}
+      \range{pages}{6}
+    \endentry
+    \entry{fellegi1976systematic}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=3512111ae31e192e17da34a459844765}{%
+           family={Fellegi},
+           familyi={F\bibinitperiod},
+           given={Ivan\bibnamedelima P.},
+           giveni={I\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+        {{hash=58ef3f1b3111595e5acbb798db692dda}{%
+           family={Holt},
+           familyi={H\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{fullhash}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{fullhashraw}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{bibnamehash}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{authorbibnamehash}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{authornamehash}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{authorfullhash}{64393001d13f46e9584f1a6f7cd21187}
+      \strng{authorfullhashraw}{64393001d13f46e9584f1a6f7cd21187}
+      \field{sortinit}{F}
+      \field{sortinithash}{2638baaa20439f1b5a8f80c6c08a13b4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of the American Statistical Association}
+      \field{number}{353}
+      \field{title}{A Systematic Approach to Automatic Edit and Imputation}
+      \field{volume}{71}
+      \field{year}{1976}
+      \field{pages}{17\bibrangedash 35}
+      \range{pages}{19}
+      \verb{doi}
+      \verb 10.1080/01621459.1976.10481472
+      \endverb
+    \endentry
+    \entry{hoare1969axiomatic}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=d6facc8397f631d3ef01dd70be993640}{%
+           family={Hoare},
+           familyi={H\bibinitperiod},
+           given={C.\bibnamedelimi A.\bibnamedelimi R.},
+           giveni={C\bibinitperiod\bibinitdelim A\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+      }
+      \strng{namehash}{d6facc8397f631d3ef01dd70be993640}
+      \strng{fullhash}{d6facc8397f631d3ef01dd70be993640}
+      \strng{fullhashraw}{d6facc8397f631d3ef01dd70be993640}
+      \strng{bibnamehash}{d6facc8397f631d3ef01dd70be993640}
+      \strng{authorbibnamehash}{d6facc8397f631d3ef01dd70be993640}
+      \strng{authornamehash}{d6facc8397f631d3ef01dd70be993640}
+      \strng{authorfullhash}{d6facc8397f631d3ef01dd70be993640}
+      \strng{authorfullhashraw}{d6facc8397f631d3ef01dd70be993640}
+      \field{sortinit}{H}
+      \field{sortinithash}{23a3aa7c24e56cfa16945d55545109b5}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Communications of the ACM}
+      \field{number}{10}
+      \field{title}{An Axiomatic Basis for Computer Programming}
+      \field{volume}{12}
+      \field{year}{1969}
+      \field{pages}{576\bibrangedash 580}
+      \range{pages}{5}
+      \verb{doi}
+      \verb 10.1145/363235.363259
+      \endverb
+    \endentry
+    \entry{demoura2008z3}{inproceedings}{}{}
+      \name{author}{2}{}{%
+        {{hash=04ffe79f369bf9f16e299fcf4f98e780}{%
+           family={Moura},
+           familyi={M\bibinitperiod},
+           given={Leonardo},
+           giveni={L\bibinitperiod},
+           prefix={de},
+           prefixi={d\bibinitperiod}}}%
+        {{hash=99b7b42f13980bae3d14cd2bbc329658}{%
+           family={Bj{ø}rner},
+           familyi={B\bibinitperiod},
+           given={Nikolaj},
+           giveni={N\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{fullhash}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{fullhashraw}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{bibnamehash}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{authorbibnamehash}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{authornamehash}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{authorfullhash}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \strng{authorfullhashraw}{8ed841e87e50b9624f9ae19c1fa525cc}
+      \field{sortinit}{M}
+      \field{sortinithash}{4625c616857f13d17ce56f7d4f97d451}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Tools and Algorithms for the Construction and Analysis of Systems (TACAS)}
+      \field{series}{Lecture Notes in Computer Science}
+      \field{title}{{Z3}: An Efficient {SMT} Solver}
+      \field{volume}{4963}
+      \field{year}{2008}
+      \field{pages}{337\bibrangedash 340}
+      \range{pages}{4}
+      \verb{doi}
+      \verb 10.1007/978-3-540-78800-3_24
+      \endverb
+    \endentry
+    \entry{schiopu2015survey}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=50b7bd745f74cadc5a0f9672f15d2707}{%
+           family={Schiopu-Kratina},
+           familyi={S\bibinithyphendelim K\bibinitperiod},
+           given={Ioana},
+           giveni={I\bibinitperiod}}}%
+        {{hash=ef28fca0beebf64af1ae92f7199aaf47}{%
+           family={Lavallée},
+           familyi={L\bibinitperiod},
+           given={Pierre},
+           giveni={P\bibinitperiod}}}%
+        {{hash=5cd8f9b7ccb8538cd7be60fa391ad570}{%
+           family={Rivest},
+           familyi={R\bibinitperiod},
+           given={Louis-Paul},
+           giveni={L\bibinithyphendelim P\bibinitperiod}}}%
+      }
+      \strng{namehash}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{fullhash}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{fullhashraw}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{bibnamehash}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{authorbibnamehash}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{authornamehash}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{authorfullhash}{14d471b188b13bf3e75704d7c74c46ef}
+      \strng{authorfullhashraw}{14d471b188b13bf3e75704d7c74c46ef}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Methodology: European Journal of Research Methods for the Behavioral and Social Sciences}
+      \field{number}{4}
+      \field{title}{Survey Questionnaires and Graphs}
+      \field{volume}{11}
+      \field{year}{2015}
+      \field{pages}{128\bibrangedash 138}
+      \range{pages}{11}
+      \verb{doi}
+      \verb 10.1027/1614-2241/a000100
+      \endverb
+    \endentry
+    \entry{willenborg1988computational}{thesis}{}{}
+      \name{author}{1}{}{%
+        {{hash=15dc05bf51583ac7fabf0bc1432cf558}{%
+           family={Willenborg},
+           familyi={W\bibinitperiod},
+           given={Leon},
+           giveni={L\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {University of Amsterdam}%
+      }
+      \strng{namehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{fullhash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{fullhashraw}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{bibnamehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authorbibnamehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authornamehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authorfullhash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authorfullhashraw}{15dc05bf51583ac7fabf0bc1432cf558}
+      \field{extraname}{1}
+      \field{sortinit}{W}
+      \field{sortinithash}{4315d78024d0cea9b57a0c6f0e35ed0d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Computational Aspects of Survey Data Processing}
+      \field{type}{phdthesis}
+      \field{year}{1988}
+    \endentry
+    \entry{willenborg1995testing}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=15dc05bf51583ac7fabf0bc1432cf558}{%
+           family={Willenborg},
+           familyi={W\bibinitperiod},
+           given={Leon},
+           giveni={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{fullhash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{fullhashraw}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{bibnamehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authorbibnamehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authornamehash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authorfullhash}{15dc05bf51583ac7fabf0bc1432cf558}
+      \strng{authorfullhashraw}{15dc05bf51583ac7fabf0bc1432cf558}
+      \field{extraname}{2}
+      \field{sortinit}{W}
+      \field{sortinithash}{4315d78024d0cea9b57a0c6f0e35ed0d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Official Statistics}
+      \field{number}{3}
+      \field{title}{Testing and Checking Questionnaires}
+      \field{volume}{11}
+      \field{year}{1995}
+      \field{pages}{299\bibrangedash 317}
+      \range{pages}{19}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+
