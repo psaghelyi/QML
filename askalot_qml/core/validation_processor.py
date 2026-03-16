@@ -1,12 +1,12 @@
 """
-AnalysisProcessor - Analysis Mode Implementation for QML Static Analysis
+ValidationProcessor - Validation Mode Implementation for QML Static Validation
 
-This processor handles static analysis of questionnaires:
-- Uses topological order + ItemClassifier for Z3 analysis
+This processor handles static validation of questionnaires:
+- Uses topological order + ItemClassifier for Z3 validation
 - Determines item availability (ALWAYS/CONDITIONALLY/NEVER)
 - Determines postcondition effects (TAUTOLOGICAL/CONSTRAINING/INFEASIBLE)
-- Generates detailed Mermaid diagrams with classification colors
-- Supports isolated Z3 analysis for safety
+- Generates graph data with classification colors for visualization
+- Supports isolated Z3 validation for safety
 
 Uses the common QMLEngine pipeline then adds Z3-based item classification.
 """
@@ -14,27 +14,32 @@ Uses the common QMLEngine pipeline then adds Z3-based item classification.
 import logging
 from typing import Optional, Dict, Any, List
 
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.core.qml_engine import QMLEngine
 from askalot_qml.z3.item_classifier import ItemClassifier
 
+try:
+    from askalot_common.tracing import create_span
+except ImportError:
+    create_span = None
 
-class AnalysisProcessor:
+
+class ValidationProcessor:
     """
-    Analysis mode processor for static questionnaire analysis.
+    Validation mode processor for static questionnaire validation.
 
     Provides:
     - Z3-based item classification (availability and postcondition effects)
-    - Detailed analysis diagrams with semantic coloring
-    - Comprehensive static analysis reports
+    - Detailed validation diagrams with semantic coloring
+    - Comprehensive static validation reports
     """
 
-    def __init__(self, questionnaire_state: QuestionnaireState):
+    def __init__(self, questionnaire_state: QMLState):
         """
-        Initialize analysis processor with questionnaire state.
+        Initialize validation processor with questionnaire state.
 
         Args:
-            questionnaire_state: The questionnaire to analyze
+            questionnaire_state: The questionnaire to validate
         """
         self.logger = logging.getLogger(__name__)
         self.state = questionnaire_state
@@ -45,7 +50,7 @@ class AnalysisProcessor:
         # Item classifications (lazy-loaded)
         self._classifications: Optional[Dict[str, Any]] = None
 
-        self.logger.info(f"AnalysisProcessor initialized for {len(self.engine.get_items())} items")
+        self.logger.info(f"ValidationProcessor initialized for {len(self.engine.get_items())} items")
 
     def get_item_classifications(self) -> Dict[str, Any]:
         """
@@ -58,12 +63,20 @@ class AnalysisProcessor:
             return self._classifications
 
         try:
-            self.logger.info("Running direct Z3 analysis...")
-            classifier = ItemClassifier(self.engine.static_builder)
-            self._classifications = classifier.classify_all_items()
-            self.logger.info("Direct Z3 analysis completed successfully")
+            self.logger.info("Running Z3 validation...")
+            item_count = len(self.engine.get_items())
+            span_ctx = create_span("qml.z3_validation", {"item_count": item_count}) if create_span else None
+            if span_ctx:
+                span_ctx.__enter__()
+            try:
+                classifier = ItemClassifier(self.engine.static_builder)
+                self._classifications = classifier.classify_all_items()
+            finally:
+                if span_ctx:
+                    span_ctx.__exit__(None, None, None)
+            self.logger.info("Z3 validation completed successfully")
         except Exception as e:
-            self.logger.error(f"Z3 analysis failed: {e}")
+            self.logger.error(f"Z3 validation failed: {e}")
             self._classifications = {}
 
         return self._classifications
@@ -88,46 +101,52 @@ class AnalysisProcessor:
             },
         })
 
-    def generate_analysis_diagram(self, enable_z3_analysis: bool = True) -> str:
+    def generate_validation_graph(self, enable_z3_validation: bool = True, layout_engine: str = 'dot') -> dict:
         """
-        Generate detailed Mermaid diagram with Z3 analysis coloring.
+        Generate positioned graph data with Z3 validation coloring.
+
+        Builds the JSON graph IR, applies Z3 coloring, and computes
+        server-side layout via a Graphviz layout engine.
 
         Args:
-            enable_z3_analysis: Whether to use Z3 classification for coloring
+            enable_z3_validation: Whether to use Z3 classification for coloring
+            layout_engine: Graphviz layout engine ('dot', 'neato', 'fdp', 'sfdp', 'twopi', 'circo')
 
         Returns:
-            Mermaid diagram string with analysis coloring
+            Positioned graph dict with nodes (x,y), edges (bend_points),
+            metadata, classes, and layout bounds
         """
         from askalot_qml.core.qml_diagram import QMLDiagram
-        from askalot_qml.z3.item_classifier import ItemClassifier
+        from askalot_qml.core.qml_layout import compute_layout
 
         diagram_generator = QMLDiagram(self.engine.topology, self.state)
-        base_diagram = diagram_generator.generate_base_diagram()
+        base_graph = diagram_generator.generate_base_graph()
 
-        if enable_z3_analysis:
-            # Create classifier and apply analysis coloring
-            classifier = ItemClassifier(self.engine.static_builder)
-            return diagram_generator.apply_analysis_coloring(base_diagram, classifier)
+        if enable_z3_validation:
+            # Reuse cached classifications (lazy-loaded once, not re-computed)
+            classifications = self.get_item_classifications()
+            graph = diagram_generator.apply_validation_coloring(base_graph, classifications=classifications)
         else:
-            # No analysis - just return base diagram
-            return base_diagram
+            graph = base_graph
 
-    def generate_analysis_report(self) -> str:
+        return compute_layout(graph, engine=layout_engine)
+
+    def generate_validation_report(self) -> str:
         """
-        Generate comprehensive text analysis report.
+        Generate comprehensive text validation report.
 
         Returns:
-            Detailed text report of questionnaire analysis
+            Detailed text report of questionnaire validation
         """
         from askalot_qml.core.qml_diagram import QMLDiagram
 
         diagram_generator = QMLDiagram(self.engine.topology, self.state)
-        base_report = diagram_generator.generate_analysis_report()
+        base_report = diagram_generator.generate_validation_report()
 
         # Add Z3 classification summary if available
         classifications = self.get_item_classifications()
         if classifications:
-            lines = [base_report, "", "🔬 Z3 Analysis Results:"]
+            lines = [base_report, "", "Z3 Validation Results:"]
 
             # Count classification types
             always_count = sum(1 for c in classifications.values()
@@ -173,18 +192,18 @@ class AnalysisProcessor:
 
     def get_statistics(self) -> Dict[str, Any]:
         """
-        Get analysis-specific statistics.
+        Get validation-specific statistics.
 
         Returns:
-            Statistics about the questionnaire analysis
+            Statistics about the questionnaire validation
         """
         stats = self.engine.get_statistics()
 
-        # Add analysis-specific information
+        # Add validation-specific information
         classifications = self.get_item_classifications()
         stats.update({
-            'analysis_mode': True,
-            'z3_analysis_available': bool(classifications)
+            'validation_mode': True,
+            'z3_validation_available': bool(classifications)
         })
 
         if classifications:
@@ -207,24 +226,24 @@ class AnalysisProcessor:
         return stats
 
     def debug_dump(self) -> str:
-        """Generate debug output for analysis processor."""
+        """Generate debug output for validation processor."""
         lines = []
         lines.append("=" * 60)
-        lines.append("ANALYSIS PROCESSOR DEBUG DUMP")
+        lines.append("VALIDATION PROCESSOR DEBUG DUMP")
         lines.append("=" * 60)
 
         stats = self.get_statistics()
-        lines.append(f"\n📊 Analysis Summary:")
-        lines.append(f"  Z3 analysis available: {stats['z3_analysis_available']}")
+        lines.append(f"\nValidation Summary:")
+        lines.append(f"  Z3 validation available: {stats['z3_validation_available']}")
         lines.append(f"  Has cycles: {self.engine.has_cycles()}")
 
         if stats.get('precondition_classification'):
-            lines.append(f"\n🎯 Precondition Classification:")
+            lines.append(f"\nPrecondition Classification:")
             for status, count in stats['precondition_classification'].items():
                 lines.append(f"    {status}: {count}")
 
         if stats.get('postcondition_classification'):
-            lines.append(f"\n📋 Postcondition Classification:")
+            lines.append(f"\nPostcondition Classification:")
             for invariant, count in stats['postcondition_classification'].items():
                 lines.append(f"    {invariant}: {count}")
 

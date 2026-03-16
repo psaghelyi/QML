@@ -3,7 +3,7 @@
 
 This test suite verifies the complete pipeline from QML files to Z3 constraints:
 1. QMLLoader parses YAML files correctly
-2. QuestionnaireState is initialized with correct structure
+2. QMLState is initialized with correct structure
 3. StaticBuilder generates Z3 constraints from conditions
 4. QMLTopology discovers dependencies and detects cycles
 5. ItemClassifier produces correct classifications
@@ -16,22 +16,22 @@ import pytest
 from pathlib import Path
 
 from askalot_qml.core.qml_loader import QMLLoader
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.z3.static_builder import StaticBuilder
 from askalot_qml.core.qml_topology import QMLTopology
 from askalot_qml.z3.item_classifier import ItemClassifier
 
 
 # Path to fixture files
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
-def load_qml_fixture(filename: str) -> QuestionnaireState:
-    """Load a QML fixture file and return QuestionnaireState."""
-    loader = QMLLoader()
+def load_qml_fixture(filename: str) -> QMLState:
+    """Load a QML fixture file and return QMLState."""
+    loader = QMLLoader(schema_path=None)
     qml_path = FIXTURES_DIR / filename
     data = loader.load_from_path(str(qml_path))
-    return QuestionnaireState(data)
+    return QMLState(data)
 
 
 @pytest.mark.integration
@@ -87,10 +87,103 @@ class TestQMLLoading(unittest.TestCase):
         for block in state.get_blocks():
             self.assertNotIn("items", block)
 
+    def test_scalar_predicate_normalization(self):
+        """Test that YAML scalar predicates are converted to strings.
+
+        YAML parses certain values as non-string types, but predicates must be
+        strings for ast.parse(). The loader should normalize scalars (bool, int, float).
+        """
+        loader = QMLLoader(schema_path=None)
+
+        # QML with various scalar predicates (YAML will parse as non-string)
+        qml_content = """
+questionnaire:
+  title: Scalar Predicate Test
+  blocks:
+    - id: main
+      items:
+        - id: q1
+          kind: Question
+          title: Boolean true
+          precondition:
+            - predicate: true
+        - id: q2
+          kind: Question
+          title: Boolean false
+          postcondition:
+            - predicate: false
+              hint: This always fails
+        - id: q3
+          kind: Question
+          title: Integer predicate
+          precondition:
+            - predicate: 1
+        - id: q4
+          kind: Question
+          title: Float predicate
+          precondition:
+            - predicate: 1.5
+        - id: q5
+          kind: Question
+          title: String predicate
+          precondition:
+            - predicate: "q1.outcome > 0"
+"""
+        data = loader.load_from_string(qml_content)
+        state = QMLState(data)
+
+        # Check that boolean predicates were converted to strings
+        q1 = state.get_item("q1")
+        self.assertEqual(q1["precondition"][0]["predicate"], "True")
+        self.assertIsInstance(q1["precondition"][0]["predicate"], str)
+
+        q2 = state.get_item("q2")
+        self.assertEqual(q2["postcondition"][0]["predicate"], "False")
+        self.assertIsInstance(q2["postcondition"][0]["predicate"], str)
+
+        # Check that int predicate was converted
+        q3 = state.get_item("q3")
+        self.assertEqual(q3["precondition"][0]["predicate"], "1")
+        self.assertIsInstance(q3["precondition"][0]["predicate"], str)
+
+        # Check that float predicate was converted
+        q4 = state.get_item("q4")
+        self.assertEqual(q4["precondition"][0]["predicate"], "1.5")
+        self.assertIsInstance(q4["precondition"][0]["predicate"], str)
+
+        # String predicates should remain unchanged
+        q5 = state.get_item("q5")
+        self.assertEqual(q5["precondition"][0]["predicate"], "q1.outcome > 0")
+
+    def test_complex_predicate_raises_error(self):
+        """Test that complex type predicates (list, dict) raise ValueError."""
+        loader = QMLLoader(schema_path=None)
+
+        # QML with list predicate (likely a mistake)
+        qml_content = """
+questionnaire:
+  title: Invalid Predicate Test
+  blocks:
+    - id: main
+      items:
+        - id: q1
+          kind: Question
+          title: Invalid predicate
+          precondition:
+            - predicate:
+                - item1
+                - item2
+"""
+        with self.assertRaises(ValueError) as ctx:
+            loader.load_from_string(qml_content)
+
+        self.assertIn("Invalid predicate type", str(ctx.exception))
+        self.assertIn("list", str(ctx.exception))
+
 
 @pytest.mark.integration
-class TestQuestionnaireStateInitialization(unittest.TestCase):
-    """Tests for QuestionnaireState correct initialization."""
+class TestQMLStateInitialization(unittest.TestCase):
+    """Tests for QMLState correct initialization."""
 
     def test_items_have_required_fields(self):
         """Test that items have all required fields after loading."""
@@ -109,7 +202,6 @@ class TestQuestionnaireStateInitialization(unittest.TestCase):
         for item in state.get_items():
             # Runtime state should be initialized
             self.assertFalse(item.get("visited", False))
-            self.assertFalse(item.get("disabled", False))
 
     def test_get_items_by_block(self):
         """Test filtering items by block."""

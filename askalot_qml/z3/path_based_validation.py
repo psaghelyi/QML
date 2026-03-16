@@ -83,6 +83,7 @@ class PathBasedValidator:
         self.logger = logging.getLogger(__name__)
         self.builder = builder
         self.topology = topology
+        self.ctx = builder.ctx
 
     def validate(self) -> PathValidationResult:
         """
@@ -140,11 +141,14 @@ class PathBasedValidator:
         """
         predecessors = {}
 
+        # Pre-compute index lookup for O(1) position checks
+        topo_index = {item_id: idx for idx, item_id in enumerate(topological_order)}
+
         # Get transitive dependencies for each item
         for item_id in topological_order:
             deps = self._get_transitive_dependencies(item_id)
             # Filter to only include items that come before in topological order
-            item_idx = topological_order.index(item_id)
+            item_idx = topo_index[item_id]
             predecessors[item_id] = [
                 dep for dep in topological_order[:item_idx]
                 if dep in deps
@@ -206,7 +210,7 @@ class PathBasedValidator:
         base = self.builder.get_domain_base()
 
         # Check per-item reachability: SAT(B ∧ P_i)?
-        s_per_item = Solver()
+        s_per_item = Solver(ctx=self.ctx)
         s_per_item.add(base, P_i)
         per_item_reachable = s_per_item.check() == sat
 
@@ -216,7 +220,7 @@ class PathBasedValidator:
         else:
             # Check if always reachable: UNSAT(B ∧ ¬P_i)?
             from z3 import Not
-            s_always = Solver()
+            s_always = Solver(ctx=self.ctx)
             s_always.add(base, Not(P_i))
             always_reachable = s_always.check() == unsat
             per_item_status = "ALWAYS" if always_reachable else "CONDITIONAL"
@@ -246,7 +250,7 @@ class PathBasedValidator:
 
         # Build accumulated formula: A_i = B ∧ ∧{j∈Pred(i)}(P_j ⇒ Q_j)
         # where B is domain-only base constraint
-        solver = Solver()
+        solver = Solver(ctx=self.ctx)
         solver.add(base)  # base is already domain-only from above
 
         # Add implications from all predecessors

@@ -1,17 +1,18 @@
 """
-QMLTopology - Z3-Driven Dependency Analysis and Topological Sorting
+QMLTopology - Dependency Analysis and Topological Sorting
 
-This module uses Z3 constraint solving to discover dependencies between
-questionnaire items and detect cycles through satisfiability checking.
+This module uses StaticBuilder's dependency graph to build topology:
+- Dependency chains resolved transitively through variables
+- Cycle detection via Kahn's algorithm (O(V+E), replaces prior O(n²) Z3 approach)
+- Topological ordering with stable priority queue for deterministic output
 """
 
 import logging
 from typing import Dict, Set, List, Optional, Tuple
 from collections import deque
 import heapq
-from z3 import *
 
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.z3.static_builder import StaticBuilder
 
 
@@ -25,7 +26,7 @@ class QMLTopology:
     3. Compute topological ordering with Kahn's algorithm
     """
 
-    def __init__(self, questionnaire_state: QuestionnaireState, static_builder: StaticBuilder):
+    def __init__(self, questionnaire_state: QMLState, static_builder: StaticBuilder):
         """
         Initialize topology analysis with Z3.
 
@@ -53,11 +54,9 @@ class QMLTopology:
         self.cycles: List[List[str]] = []
         self.has_cycles: bool = False
 
-        # Build topology using Z3
+        # Build topology — cycle detection is integrated into Kahn's algorithm
         self._build_dependency_graph()
-        self._detect_cycles_z3()
-        if not self.has_cycles:
-            self._compute_topological_order()
+        self._compute_topological_order()
 
     def _build_dependency_graph(self):
         """Build dependency graph from Z3 constraint analysis."""
@@ -80,49 +79,6 @@ class QMLTopology:
         for item_id, deps in self.dependencies.items():
             if deps:
                 self.logger.debug(f"  {item_id} depends on: {', '.join(sorted(deps))}")
-
-    def _detect_cycles_z3(self):
-        """Detect cycles using Z3 satisfiability checking."""
-        if not self.items:
-            return
-
-        solver = Solver()
-
-        # Create ordering variables for each item
-        order_vars = {}
-        for item_id in self.items:
-            order_vars[item_id] = Int(f"order_{item_id}")
-            # Each item has a unique position
-            solver.add(order_vars[item_id] >= 0)
-            solver.add(order_vars[item_id] < len(self.items))
-
-        # Add uniqueness constraints
-        for i, item1 in enumerate(self.items):
-            for item2 in self.items[i+1:]:
-                solver.add(order_vars[item1] != order_vars[item2])
-
-        # Add dependency constraints
-        # If A depends on B, then order(A) > order(B)
-        for item_id, deps in self.dependencies.items():
-            for dep_id in deps:
-                if dep_id in order_vars:  # Ensure dependency exists in our items
-                    solver.add(order_vars[item_id] > order_vars[dep_id])
-
-        # Check satisfiability
-        result = solver.check()
-
-        if result == unsat:
-            # Cycles exist - find them using graph traversal
-            self.has_cycles = True
-            self._find_cycles_dfs()
-            self.logger.warning(f"Z3 detected cycles in dependency graph")
-        elif result == sat:
-            self.has_cycles = False
-            self.logger.info("No cycles detected by Z3")
-        else:
-            self.logger.warning("Z3 solver returned unknown")
-            # Fall back to DFS-based cycle detection
-            self._find_cycles_dfs()
 
     def _find_cycles_dfs(self):
         """Find actual cycles using DFS when Z3 detects unsatisfiability."""
@@ -165,11 +121,10 @@ class QMLTopology:
         Uses a min-heap keyed by original QML file order to ensure that when
         multiple items are available (in_degree = 0), the one appearing first
         in the original QML file is processed first.
-        """
-        if self.has_cycles:
-            self.logger.error("Cannot compute topological order: cycles detected")
-            return
 
+        Also detects cycles: if Kahn's algorithm doesn't process all items,
+        cycles exist. This replaces the previous O(n²) Z3-based cycle detection.
+        """
         # Build index map for original QML order
         item_index = {item_id: idx for idx, item_id in enumerate(self.items)}
 
@@ -197,14 +152,17 @@ class QMLTopology:
                     # Add to heap with original QML index as priority
                     heapq.heappush(heap, (item_index[dependent], dependent))
 
-        # Check if we processed all items
+        # Check if we processed all items — if not, cycles exist
         if len(result) == len(self.items):
             self.topological_order = result
+            self.has_cycles = False
             self.logger.info(f"Computed topological order for {len(result)} items")
         else:
-            # This shouldn't happen if cycle detection works correctly
-            self.logger.error("Failed to compute complete topological order")
             self.has_cycles = True
+            self._find_cycles_dfs()
+            self.logger.warning(
+                f"Kahn's algorithm processed {len(result)}/{len(self.items)} items — cycles detected"
+            )
 
     def get_topological_order(self) -> Optional[List[str]]:
         """Get the topological order of items."""

@@ -58,12 +58,9 @@ def sample_qml_file(test_qml_dir, sample_qml_content):
 
 @pytest.fixture
 def test_schema_path():
-    """Path to test schema file."""
-    # Use relative path for testing
-    schema_path = Path(__file__).parent.parent.parent.parent / "data" / "definitions" / "qml-schema.json"
-    if schema_path.exists():
-        return schema_path
-    return None
+    """Path to bundled QML schema."""
+    from askalot_qml.schema import SCHEMA_PATH
+    return SCHEMA_PATH
 
 
 # Ensure test environment

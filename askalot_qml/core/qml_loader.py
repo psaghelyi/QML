@@ -10,6 +10,9 @@ import yaml
 from jsonschema import validate, ValidationError
 
 
+_UNSET = object()
+
+
 class QMLLoader:
     """
     Load and parse QML files into dictionary structures.
@@ -18,27 +21,35 @@ class QMLLoader:
     and comprehensive type hints.
 
     Environment Variables:
-        QML_DIR: Default directory containing QML files
-        QML_SCHEMA: Default path to QML JSON schema for validation
+        ORGANIZATIONS_DIR: Root directory containing organization data
     """
 
     def __init__(
         self,
         qml_dir: Optional[str | Path] = None,
-        schema_path: Optional[str | Path] = None,
+        schema_path: Optional[str | Path] = _UNSET,
         logger: Optional[logging.Logger] = None
     ):
         """
         Initialize QML loader.
 
         Args:
-            qml_dir: Directory containing QML files. Falls back to QML_DIR env var.
-            schema_path: Path to QML JSON schema for validation. Falls back to QML_SCHEMA env var.
+            qml_dir: Directory containing QML files. Falls back to ORGANIZATIONS_DIR env var.
+            schema_path: Omit to use the bundled schema from askalot_qml.
+                         Pass None to disable schema validation.
+                         Pass a Path to use a custom schema.
             logger: Optional logger instance
         """
         self.logger = logger or logging.getLogger(__name__)
         self.qml_dir = Path(qml_dir) if qml_dir else self._get_qml_dir_from_env()
-        self.schema_path = Path(schema_path) if schema_path else self._get_schema_path_from_env()
+
+        if schema_path is _UNSET:
+            from askalot_qml.schema import SCHEMA_PATH
+            self.schema_path = SCHEMA_PATH
+        elif schema_path is None:
+            self.schema_path = None
+        else:
+            self.schema_path = Path(schema_path)
 
         self.qml_content: Optional[str] = None
         self.parsed_yaml: Optional[Dict[str, Any]] = None
@@ -46,25 +57,13 @@ class QMLLoader:
         self.logger.info(f"QMLLoader initialized with qml_dir={self.qml_dir}, schema_path={self.schema_path}")
 
     def _get_qml_dir_from_env(self) -> Path:
-        """Get QML directory from QML_DIR environment variable."""
-        qml_dir = os.environ.get('QML_DIR')
+        """Get QML directory from ORGANIZATIONS_DIR environment variable."""
+        qml_dir = os.environ.get('ORGANIZATIONS_DIR')
         if qml_dir:
             return Path(qml_dir)
-        self.logger.warning("QML_DIR environment variable not set")
-        return Path("data/qml")
+        self.logger.warning("ORGANIZATIONS_DIR environment variable not set")
+        return Path("data/organizations")
 
-    def _get_schema_path_from_env(self) -> Optional[Path]:
-        """Get schema path from QML_SCHEMA environment variable."""
-        schema_path = os.environ.get('QML_SCHEMA')
-        if schema_path:
-            path = Path(schema_path)
-            if path.exists():
-                return path
-            self.logger.warning(f"QML_SCHEMA path does not exist: {schema_path}")
-            return None
-        self.logger.debug("QML_SCHEMA environment variable not set, schema validation disabled")
-        return None
-    
     def load_from_file(self, filename: str) -> Dict[str, Any]:
         """
         Load and parse QML file.
@@ -107,13 +106,18 @@ class QMLLoader:
         
         # Parse YAML
         self.parsed_yaml = yaml.safe_load(self.qml_content)
-        
+
+        # Normalize predicates BEFORE schema validation
+        # This allows QML authors to use bare True/False without quotes
+        if 'questionnaire' in self.parsed_yaml:
+            self._normalize_all_predicates(self.parsed_yaml['questionnaire'])
+
         # Validate against schema if available
         if self.schema_path and self.schema_path.exists():
             self._validate_against_schema()
         else:
             self.logger.debug("Schema validation skipped (no schema available)")
-        
+
         # Return questionnaire section
         if 'questionnaire' not in self.parsed_yaml:
             raise ValueError("QML file must contain 'questionnaire' section")
@@ -124,23 +128,28 @@ class QMLLoader:
     def load_from_string(self, qml_content: str) -> Dict[str, Any]:
         """
         Load and parse QML from string content.
-        
+
         Args:
             qml_content: QML YAML content as string
-            
+
         Returns:
             Parsed questionnaire dictionary
-            
+
         Raises:
             ValidationError: If QML doesn't match schema
         """
         self.qml_content = qml_content
         self.parsed_yaml = yaml.safe_load(qml_content)
-        
+
+        # Normalize predicates BEFORE schema validation
+        # This allows QML authors to use bare True/False without quotes
+        if 'questionnaire' in self.parsed_yaml:
+            self._normalize_all_predicates(self.parsed_yaml['questionnaire'])
+
         # Validate against schema if available
         if self.schema_path and self.schema_path.exists():
             self._validate_against_schema()
-        
+
         if 'questionnaire' not in self.parsed_yaml:
             raise ValueError("QML content must contain 'questionnaire' section")
 
@@ -200,6 +209,21 @@ class QMLLoader:
         """
         return self.qml_dir / filename
 
+    def _normalize_all_predicates(self, questionnaire: Dict[str, Any]) -> None:
+        """
+        Normalize predicates in the nested questionnaire structure (before flattening).
+
+        This method walks through the nested block/item structure and normalizes
+        all predicates BEFORE schema validation. This allows QML authors to write
+        bare boolean/numeric predicates (like `predicate: True`) without quotes.
+
+        Args:
+            questionnaire: Nested questionnaire dictionary (modified in place)
+        """
+        for block in questionnaire.get('blocks', []):
+            for item in block.get('items', []):
+                self._normalize_predicates(item)
+
     def _flatten_questionnaire_structure(self, questionnaire: Dict[str, Any]) -> Dict[str, Any]:
         """
         Flatten the nested block/item structure to a flat list of items.
@@ -234,6 +258,8 @@ class QMLLoader:
                 # Add blockId to each item
                 item_with_block = dict(item)
                 item_with_block['blockId'] = block['id']
+                # Normalize predicates (convert YAML booleans to strings)
+                self._normalize_predicates(item_with_block)
                 flat_items.append(item_with_block)
 
         # Update the result with flat structure
@@ -245,3 +271,47 @@ class QMLLoader:
         )
 
         return result
+
+    def _normalize_predicates(self, item: Dict[str, Any]) -> None:
+        """
+        Normalize predicates in preconditions and postconditions.
+
+        YAML parses certain values as non-string types, but predicates must be
+        strings for ast.parse() in the Python runner. This method converts
+        scalar predicates to their string representation.
+
+        Supported conversions:
+        - bool: True/False → "True"/"False"
+        - int: 123 → "123"
+        - float: 1.5 → "1.5"
+
+        Complex types (list, dict) raise ValueError as they likely indicate
+        a QML authoring error.
+
+        Args:
+            item: Item dictionary to normalize (modified in place)
+
+        Raises:
+            ValueError: If predicate is a complex type (list, dict)
+        """
+        for condition_key in ('precondition', 'postcondition'):
+            conditions = item.get(condition_key)
+            if conditions:
+                for condition in conditions:
+                    predicate = condition.get('predicate')
+                    if predicate is None:
+                        continue
+                    if isinstance(predicate, str):
+                        continue
+                    if isinstance(predicate, (bool, int, float)):
+                        condition['predicate'] = str(predicate)
+                        self.logger.debug(
+                            f"Normalized {type(predicate).__name__} predicate in "
+                            f"{item.get('id', 'unknown')}.{condition_key}: "
+                            f"{predicate!r} -> '{condition['predicate']}'"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Invalid predicate type in {item.get('id', 'unknown')}.{condition_key}: "
+                            f"expected string or scalar, got {type(predicate).__name__}: {predicate!r}"
+                        )

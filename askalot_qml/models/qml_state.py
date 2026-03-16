@@ -44,7 +44,6 @@ class QuestionnaireItem(TypedDict):
     # Runtime state (added during execution)
     outcome: NotRequired[Any]  # User's answer/selection
     visited: NotRequired[bool]  # Has been shown to user
-    disabled: NotRequired[bool]  # Is accessible
     context: NotRequired[Dict[str, Any]]  # Variable state AFTER this item's execution
 
 
@@ -58,9 +57,9 @@ class QuestionnaireBlock(TypedDict):
     # No items here - blocks are just metadata for grouping
 
 
-class QuestionnaireState(dict):
+class QMLState(dict):
     """
-    Questionnaire execution state with flat item structure and exposed types.
+    QML execution state with flat item structure and exposed types.
 
     Items reference their blocks rather than being nested inside them.
     Maintains functional approach where context flows through items without mutation.
@@ -72,7 +71,7 @@ class QuestionnaireState(dict):
 
     def __init__(self, state: Dict[str, Any] = None):
         """
-        Initialize questionnaire state from dictionary.
+        Initialize QML state from dictionary.
 
         Args:
             state: Dictionary containing questionnaire data (from QML or saved state)
@@ -91,17 +90,13 @@ class QuestionnaireState(dict):
         # Each warning has: item_id, type ('precondition'|'postcondition'|'codeblock'), message
         self.setdefault('warnings', [])
 
-        # Cache for base Mermaid diagram (used in flow mode)
-        # This field stores the structural diagram without item coloring
-        self.setdefault('base_mermaid_diagram', None)
-
     def __str__(self) -> str:
         """String representation of the state."""
-        return f"QuestionnaireState(items={len(self.get_items())}, blocks={len(self.get_blocks())})"
+        return f"QMLState(items={len(self.get_items())}, blocks={len(self.get_blocks())})"
 
     def __repr__(self) -> str:
         """Detailed representation of the state."""
-        return f"QuestionnaireState({super().__repr__()})"
+        return f"QMLState({super().__repr__()})"
 
     # Block access methods
     def get_blocks(self) -> List[QuestionnaireBlock]:
@@ -216,7 +211,7 @@ class QuestionnaireState(dict):
 
     def reset(self) -> None:
         """
-        Reset the questionnaire state to its initial state.
+        Reset the QML state to its initial state.
 
         Clears all runtime state including:
         - Navigation path (triggers re-initialization with initCode)
@@ -224,7 +219,7 @@ class QuestionnaireState(dict):
         - Visited items
         - Warnings
         - Cached diagrams
-        - Item outcomes, visited status, disabled status, and context
+        - Item outcomes, visited status, and context
 
         After reset, the FlowProcessor will re-initialize the questionnaire,
         including re-running the initCode block with fresh context.
@@ -238,15 +233,11 @@ class QuestionnaireState(dict):
         # This ensures initCode is re-run with empty outcomes and fresh context
         self.pop('navigation_path', None)
 
-        # Clear cached diagrams (will be regenerated)
-        self.pop('base_mermaid_diagram', None)
-
         # Clear runtime state from all items
         for item in self.get_items():
             # Remove runtime fields
             item.pop('outcome', None)
             item.pop('visited', None)
-            item.pop('disabled', None)
             item.pop('context', None)
 
     def set_current_item(self, item_id: str) -> None:
@@ -305,3 +296,5 @@ class QuestionnaireState(dict):
     def has_warnings(self) -> bool:
         """Check if any warnings were collected."""
         return len(self.get('warnings', [])) > 0
+
+

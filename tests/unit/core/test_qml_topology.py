@@ -38,15 +38,16 @@ Total: 16 tests covering QMLTopology functionality.
 
 import unittest
 import pytest
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.core.qml_topology import QMLTopology
 from askalot_qml.z3.static_builder import StaticBuilder
 
 
-def create_questionnaire(items_data: list) -> QuestionnaireState:
-    """Helper to create QuestionnaireState from item definitions."""
-    return QuestionnaireState({
+def create_questionnaire(items_data: list, code_init: str = '') -> QMLState:
+    """Helper to create QMLState from item definitions."""
+    return QMLState({
         'title': 'Test Questionnaire',
+        'codeInit': code_init,
         'blocks': [{'id': 'b1', 'title': 'Block 1'}],
         'items': [
             {
@@ -68,7 +69,7 @@ class TestQMLTopologyDependencyGraph(unittest.TestCase):
 
     def test_empty_questionnaire(self):
         """Test topology with no items."""
-        state = QuestionnaireState({
+        state = QMLState({
             'title': 'Empty',
             'blocks': [],
             'items': []
@@ -190,15 +191,22 @@ class TestQMLTopologyCycleDetection(unittest.TestCase):
         self.assertTrue(topology.has_cycles)
 
     def test_self_reference(self):
-        """Test detection of self-referencing item."""
+        """Test that self-referencing precondition is filtered out.
+
+        A precondition referencing its own item's outcome (e.g., q1.outcome in q1's
+        precondition) is semantically invalid since the item hasn't been visited yet.
+        These self-references are filtered from the dependency graph and don't create cycles.
+        """
         state = create_questionnaire([
             {'id': 'q1', 'precondition': [{'predicate': 'q1.outcome == 1'}]}
         ])
         builder = StaticBuilder(state)
         topology = QMLTopology(state, builder)
 
-        # Self-reference creates a cycle
-        self.assertTrue(topology.has_cycles)
+        # Self-references in preconditions are filtered out, so no cycle
+        self.assertFalse(topology.has_cycles)
+        # Item has no dependencies (self-reference was filtered)
+        self.assertEqual(len(topology.dependencies.get('q1', set())), 0)
 
 
 @pytest.mark.unit
@@ -336,6 +344,103 @@ class TestQMLTopologyAnalysis(unittest.TestCase):
 
         # Self-reachability
         self.assertTrue(topology.can_reach('q1', 'q1'))
+
+
+@pytest.mark.unit
+@pytest.mark.topology
+@pytest.mark.transitive
+class TestQMLTopologyTransitiveDependencies(unittest.TestCase):
+    """Tests for transitive dependency resolution through variables.
+
+    These tests verify that QMLTopology correctly handles dependencies that
+    flow through variables, ensuring proper topological ordering.
+    """
+
+    def test_topology_respects_transitive_dependencies(self):
+        """Test that topology orders items correctly via transitive variable dependencies."""
+        state = create_questionnaire([
+            {'id': 'q1', 'codeBlock': 'score = q1.outcome'},
+            {'id': 'q2', 'precondition': [{'predicate': 'score > 5'}]}
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertIsNotNone(order)
+        # q1 must come before q2 because q2 depends on var:score which depends on q1
+        self.assertLess(order.index('q1'), order.index('q2'))
+
+    def test_topology_scoring_pattern(self):
+        """Test topology with scoring pattern - result depends on all score modifiers."""
+        state = create_questionnaire([
+            {'id': 'q_age', 'codeBlock': 'risk = risk + 1'},
+            {'id': 'q_smoker', 'codeBlock': 'risk = risk + 2'},
+            {'id': 'q_exercise', 'codeBlock': 'risk = risk - 1'},
+            {'id': 'q_result', 'precondition': [{'predicate': 'risk >= 0'}]}
+        ], code_init='risk = 0')
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertIsNotNone(order)
+
+        # q_result must come after all items that modify risk
+        result_idx = order.index('q_result')
+        for item_id in ['q_age', 'q_smoker', 'q_exercise']:
+            self.assertLess(order.index(item_id), result_idx,
+                f"{item_id} should come before q_result")
+
+    def test_topology_multi_hop_variable_chain(self):
+        """Test topology with multi-hop variable chain: q3 → var:total → var:score → q1."""
+        state = create_questionnaire([
+            {'id': 'q1', 'codeBlock': 'score = q1.outcome'},
+            {'id': 'q2', 'codeBlock': 'total = score + 10'},
+            {'id': 'q3', 'precondition': [{'predicate': 'total > 20'}]}
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertIsNotNone(order)
+
+        # q1 must come first, then q2, then q3
+        self.assertLess(order.index('q1'), order.index('q2'))
+        self.assertLess(order.index('q2'), order.index('q3'))
+
+    def test_topology_postcondition_transitive_dependency(self):
+        """Test topology handles postcondition-based transitive dependencies."""
+        state = create_questionnaire([
+            {'id': 'q1', 'codeBlock': 'total = q1.outcome'},
+            {'id': 'q2', 'postcondition': [{'predicate': 'total > 0'}]}
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertIsNotNone(order)
+
+        # q1 must come before q2 because q2's postcondition depends on var:total → q1
+        self.assertLess(order.index('q1'), order.index('q2'))
+
+    def test_topology_mixed_direct_and_transitive_deps(self):
+        """Test topology with mix of direct and transitive dependencies."""
+        state = create_questionnaire([
+            {'id': 'q1'},
+            {'id': 'q2', 'codeBlock': 'flag = q2.outcome'},
+            {'id': 'q3', 'precondition': [
+                {'predicate': 'q1.outcome > 0'},  # Direct dependency on q1
+                {'predicate': 'flag == 1'}        # Transitive dependency on q2 via flag
+            ]}
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertIsNotNone(order)
+
+        # q3 must come after both q1 and q2
+        self.assertLess(order.index('q1'), order.index('q3'))
+        self.assertLess(order.index('q2'), order.index('q3'))
 
 
 if __name__ == '__main__':

@@ -17,7 +17,7 @@ Architecture:
 2. Runtime Navigation (no Z3):
    - Iterates through pre-computed navigation path
    - Evaluates preconditions via Python expressions
-   - Tracks visited/disabled/isLast state attributes
+   - Tracks visited/isLast state attributes
    - Returns first item with satisfied preconditions
 
 Uses the common QMLEngine pipeline for topology analysis.
@@ -27,7 +27,7 @@ import copy
 import logging
 from typing import Optional, Dict, Any, List
 
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.models.item_proxy import ItemProxy
 from askalot_qml.core.qml_engine import QMLEngine
 from askalot_qml.core.qml_topology import QMLTopology
@@ -40,7 +40,7 @@ class FlowProcessor:
 
     Provides:
     - Pre-computed topological navigation path
-    - Simple dependency-based Mermaid diagrams
+    - Graph data generation for flow visualization
     - Current item tracking and bidirectional navigation
     - Performance-optimized (no Z3 during navigation)
 
@@ -63,13 +63,15 @@ class FlowProcessor:
 
     State attributes:
     - visited: Item has been completed by user
-    - disabled: Item is not available (skipped)
     - isLast: Last item in survey (completion marker)
     """
 
-    def __init__(self, questionnaire_state: QuestionnaireState):
+    def __init__(self, questionnaire_state: QMLState):
         """
         Initialize flow processor with questionnaire state.
+
+        This constructor creates a full QMLEngine (which includes Z3 topology analysis).
+        For already-initialized surveys, use from_cached_state() instead to skip Z3.
 
         Args:
             questionnaire_state: The questionnaire to process
@@ -93,6 +95,29 @@ class FlowProcessor:
 
         self.logger.info(f"FlowProcessor initialized for {len(self.engine.get_items())} items")
 
+    @classmethod
+    def from_cached_state(cls, questionnaire_state: QMLState) -> 'FlowProcessor':
+        """Create a lightweight FlowProcessor without Z3/QMLEngine initialization.
+
+        Use this when the survey is already initialized (has navigation_path cached).
+        Skips QMLEngine/StaticBuilder/QMLTopology creation entirely, avoiding Z3 overhead.
+
+        Runtime navigation (get_current_item, process_item) only needs:
+        - PythonRunner for precondition/postcondition evaluation
+        - The cached navigation path from questionnaire_state
+
+        Args:
+            questionnaire_state: Already-initialized QMLState with cached navigation path
+        """
+        instance = cls.__new__(cls)
+        instance.logger = logging.getLogger(__name__)
+        instance.state = questionnaire_state
+        instance.python_runner = PythonRunner()
+        instance.topology = None
+        instance.engine = None
+        instance.logger.debug("FlowProcessor created from cached state (no Z3)")
+        return instance
+
     def _evaluate_condition(
         self,
         condition_expr: str,
@@ -113,14 +138,14 @@ class FlowProcessor:
             - True if condition expression evaluates to truthy value
             - True if expression cannot be evaluated (unsupported AST constructs,
               missing variables, type errors, etc.) - a warning is logged to
-              QuestionnaireState for data analysis
+              QMLState for data analysis
             - False if condition expression evaluates to falsy value
 
         Design rationale:
             When evaluation fails due to unsupported Python features or runtime errors,
             we "fail open" by returning True. This ensures items are shown even with
             evaluation errors, allowing data collection. Warnings are recorded in
-            QuestionnaireState.warnings for post-survey analysis.
+            QMLState.warnings for post-survey analysis.
         """
         if not condition_expr:
             return True  # If no condition, it's always satisfied
@@ -136,7 +161,7 @@ class FlowProcessor:
             )
             self.logger.warning(warning_msg)
 
-            # Collect warning in QuestionnaireState for data processing analysis
+            # Collect warning in QMLState for data processing analysis
             if item_id:
                 self.state.add_warning(item_id, condition_type, warning_msg)
 
@@ -158,7 +183,7 @@ class FlowProcessor:
 
         Returns:
             Updated context dictionary. On error, returns original context unchanged
-            and logs a warning (collected in QuestionnaireState for data analysis).
+            and logs a warning (collected in QMLState for data analysis).
         """
         if not code_block:
             return context  # No code block means no changes to context
@@ -171,13 +196,13 @@ class FlowProcessor:
             warning_msg = f"Error executing code block: {e}. Context unchanged."
             self.logger.warning(warning_msg)
 
-            # Collect warning in QuestionnaireState for data processing analysis
+            # Collect warning in QMLState for data processing analysis
             if item_id:
                 self.state.add_warning(item_id, 'codeblock', warning_msg)
 
             return context
 
-    def _initialize_questionnaire(self, questionnaire_state: QuestionnaireState) -> None:
+    def _initialize_questionnaire(self, questionnaire_state: QMLState) -> None:
         """
         Initialize questionnaire state and build topology.
         This should only be called once when first loading a questionnaire.
@@ -269,15 +294,15 @@ class FlowProcessor:
 
         return True
 
-    def get_current_item(self, questionnaire_state: QuestionnaireState, backward: bool = False) -> Optional[Dict[str, Any]]:
+    def get_current_item(self, questionnaire_state: QMLState, backward: bool = False) -> Optional[Dict[str, Any]]:
         """
         Get the current item based on preconditions and navigation history.
 
         Forward navigation strategy:
         1. Iterates through pre-computed navigation path (topological order)
-        2. Skips disabled items
-        3. Skips visited items if unvisited items remain ahead
-        4. Evaluates preconditions dynamically via Python expressions (NOT Z3)
+        2. Skips visited items if unvisited items remain ahead
+        3. Evaluates preconditions dynamically via Python expressions (NOT Z3)
+        4. Items with unsatisfied preconditions are skipped (not shown to user)
         5. Returns first item with satisfied preconditions
         6. Tracks item in navigation history for backward navigation
 
@@ -293,8 +318,8 @@ class FlowProcessor:
         Returns:
             Item data dict or None if survey is complete
         """
-        if not self.topology:
-            self.logger.error("Topology not initialized. Call initialize_questionnaire first.")
+        if not questionnaire_state.get_navigation_path():
+            self.logger.error("Navigation path not initialized. Call initialize_questionnaire first.")
             return None
 
         all_items = questionnaire_state.get_all_items()
@@ -330,51 +355,69 @@ class FlowProcessor:
         # Forward navigation - use stored navigation path
         navigation_path = questionnaire_state.get_navigation_path()
 
-        # Check if all items are already visited (survey complete)
-        # In this case, return the last visited item rather than looping
-        all_visited = all(
-            questionnaire_state.get_item(item_id).get('visited', False) or
-            questionnaire_state.get_item(item_id).get('disabled', False)
+        def is_item_visited(item):
+            """Check if an item has been visited by the user.
+
+            Note: We only check the visited flag, NOT outcome values.
+            Items may have non-empty outcomes from default values in QML,
+            but they're not "visited" until the user has actually seen them.
+            """
+            if not item:
+                return True  # Missing items don't block completion
+            return item.get('visited', False)
+
+        def is_item_done(item):
+            """Check if an item is done: either visited or has unsatisfied preconditions.
+
+            Items with unsatisfied preconditions are implicitly skipped —
+            they don't need to be visited for the survey to be complete.
+            """
+            if not item:
+                return True
+            if item.get('visited'):
+                return True
+            # Item with unsatisfied preconditions is implicitly done (skipped)
+            if not self._check_preconditions(item, all_items):
+                return True
+            return False
+
+        # Check if all items are already done (survey complete)
+        # In this case, return the last item rather than looping
+        all_done = all(
+            is_item_done(questionnaire_state.get_item(item_id))
             for item_id in navigation_path
-            if questionnaire_state.get_item(item_id)
         )
 
-        if all_visited:
-            # All items visited - return last item in navigation path with isLast flag
+        if all_done:
+            # All items done - return last visited item with isLast flag
             for item_id in reversed(navigation_path):
                 item = questionnaire_state.get_item(item_id)
-                if item and item.get('visited') and not item.get('disabled'):
+                if item and item.get('visited'):
                     item['isLast'] = True
                     return item
             return None
 
-        # Navigate using the pre-computed path - find next unvisited item
+        # Navigate using the pre-computed path - find next item that needs attention
         for item_id in navigation_path:
             item = questionnaire_state.get_item(item_id)
             if not item:
                 continue
 
-            # Skip disabled items
-            if item.get('disabled'):
+            # Skip items already visited
+            if is_item_visited(item):
                 continue
 
-            # Skip already visited items - we want to find the next unvisited one
-            if item.get('visited'):
-                continue
-
-            # Check preconditions
+            # Check preconditions — items with unsatisfied preconditions are skipped
             if self._check_preconditions(item, all_items):
                 # Track navigation in questionnaire state
                 navigation_history = questionnaire_state.get_history()
                 if item_id not in navigation_history:
                     questionnaire_state.add_to_history(item_id)
                 return item
-            else:
-                # Precondition not satisfied - mark as disabled and continue
-                item['disabled'] = True
+            # else: precondition not satisfied — skip silently
 
-        # Return last visited item if no more items (shouldn't reach here after above check)
-        visited_items = [item for item in all_items if item.get('visited', False)]
+        # Return last visited item if no more items
+        visited_items = [item for item in all_items if item.get('visited')]
         if visited_items:
             last_item = visited_items[-1]
             last_item['isLast'] = True
@@ -384,7 +427,7 @@ class FlowProcessor:
 
     def process_item(
         self,
-        questionnaire_state: QuestionnaireState,
+        questionnaire_state: QMLState,
         item_id: str,
         outcome: Dict[str, Any],
         skip_postcondition: bool = False
@@ -498,30 +541,6 @@ class FlowProcessor:
 
         topological_order = self.engine.get_topological_order()
         return topological_order if topological_order else self.engine.get_items()
-
-    def generate_flow_diagram(self, base_diagram: Optional[str] = None,
-                            current_item_id: Optional[str] = None) -> str:
-        """
-        Generate a Mermaid diagram for flow visualization.
-
-        Args:
-            base_diagram: Optional pre-generated base diagram to apply coloring to
-            current_item_id: ID of current item to highlight
-
-        Returns:
-            Mermaid diagram string with flow coloring applied
-        """
-        from askalot_qml.core.qml_diagram import QMLDiagram
-
-        diagram_generator = QMLDiagram(self.engine.topology, self.state)
-
-        if base_diagram:
-            # Apply flow coloring to existing base diagram
-            return diagram_generator.apply_flow_coloring(base_diagram, current_item_id)
-        else:
-            # Generate new base diagram and apply flow coloring
-            base = diagram_generator.generate_base_diagram()
-            return diagram_generator.apply_flow_coloring(base, current_item_id)
 
     def get_statistics(self) -> Dict[str, Any]:
         """

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "askalot_qml"
-version = "1.0.0"
+version = "1.5.0"
 description = "QML processing and analysis engine for Askalot platform"
 authors = [
     {name = "Askalot Team", email = "team@askalot.io"}
@@ -24,10 +24,13 @@ dependencies = [
     "Flask>=3.1.0",
     "PyYAML>=6.0.0",
     "jsonschema>=4.0.0",
-    "z3-solver>=4.15.0",
+    "z3-solver==4.15.3.0",
 ]
 
 [project.optional-dependencies]
+graph = [
+    "pygraphviz>=1.14",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.1.0",
@@ -46,6 +49,7 @@ Issues = "https://github.com/psaghelyi/askalot/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["askalot_qml"]
+artifacts = ["askalot_qml/schema/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -55,7 +59,8 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 markers = [
     "unit: marks tests as unit tests",
-    "integration: marks tests as integration tests"
+    "integration: marks tests as integration tests",
+    "diagram: marks tests for diagram/graph IR generation"
 ]
 
 [tool.coverage.run]

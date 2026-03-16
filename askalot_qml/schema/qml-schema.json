@@ -236,8 +236,12 @@
       ],
       "properties": {
         "predicate": {
-          "description": "Expression that must be true for the condition to be met",
-          "type": "string"
+          "description": "Expression that must be true for the condition to be met (booleans and numbers are automatically converted to strings)",
+          "oneOf": [
+            {"type": "string"},
+            {"type": "boolean"},
+            {"type": "number"}
+          ]
         },
         "hint": {
           "description": "Message to be displayed if the condition is not met",
@@ -259,6 +263,7 @@
             "Dropdown",
             "Checkbox",
             "Editbox",
+            "Textarea",
             "Slider",
             "Range"
           ]
@@ -397,6 +402,27 @@
               "min",
               "max"
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "control": {
+                "const": "Textarea"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "placeholder": {
+                "type": "string",
+                "description": "Placeholder text shown when the textarea is empty"
+              },
+              "maxLength": {
+                "type": "integer",
+                "description": "Maximum number of characters allowed"
+              }
+            }
           }
         },
         {

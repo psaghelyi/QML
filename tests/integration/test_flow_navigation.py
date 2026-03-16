@@ -14,10 +14,10 @@ from typing import Any, Optional
 
 from askalot_qml.core.flow_processor import FlowProcessor
 from askalot_qml.core.qml_loader import QMLLoader
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 def get_outcome_value(item: dict) -> Optional[Any]:
@@ -34,12 +34,12 @@ def get_outcome_value(item: dict) -> Optional[Any]:
     return outcome
 
 
-def load_qml_fixture(filename: str) -> QuestionnaireState:
-    """Load a QML fixture file and return QuestionnaireState."""
-    loader = QMLLoader()
+def load_qml_fixture(filename: str) -> QMLState:
+    """Load a QML fixture file and return QMLState."""
+    loader = QMLLoader(schema_path=None)
     qml_path = FIXTURES_DIR / filename
     data = loader.load_from_path(str(qml_path))
-    return QuestionnaireState(data)
+    return QMLState(data)
 
 
 @pytest.mark.integration
@@ -607,7 +607,7 @@ class TestPreconditionErrorHandling:
                 for record in caplog.records
             )
 
-            # Verify warning is also collected in QuestionnaireState for data analysis
+            # Verify warning is also collected in QMLState for data analysis
             assert state.has_warnings()
             warnings = state.get_warnings()
             assert len(warnings) >= 1

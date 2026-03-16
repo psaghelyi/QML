@@ -35,6 +35,7 @@ class ItemClassifier:
     def __init__(self, builder: StaticBuilder):
         self.logger = logging.getLogger(__name__)
         self.builder = builder
+        self.ctx = builder.ctx
 
     def classify_item(self, item_id: str) -> Dict[str, Any]:
         """Classify a single item using Z3 SMT solver."""
@@ -59,9 +60,14 @@ class ItemClassifier:
                 P_form: BoolRef = self.builder.compile_conditions(item_id, details["preconditions"])  # type: ignore
                 Q_form: BoolRef = self.builder.compile_conditions(item_id, details["postconditions"])  # type: ignore
 
-            # Use domain-only base constraint B as defined in thesis
+            # Use domain-only base constraint B for precondition checks
             # B := ∧_i D_i(S_i) where D_i are domain constraints (min/max, enumeration)
-            base = self.builder.get_domain_base()
+            domain_base = self.builder.get_domain_base()
+
+            # Use full base (domain + behavioral) for postcondition checks
+            # This includes SSA constraints from codeBlocks, enabling proper
+            # bounds checking for computed variables like var1 = q1 + q2
+            full_base = self.builder.get_full_base()
 
             # ------------------------------
             # Precondition reachability
@@ -70,12 +76,12 @@ class ItemClassifier:
             # else CONDITIONAL
             # ------------------------------
             with profile_block('z3_precondition_check', {'item_id': item_id}):
-                s_always = Solver()
-                s_always.add(base, Not(P_form))
+                s_always = Solver(ctx=self.ctx)
+                s_always.add(domain_base, Not(P_form))
                 precondition_always = s_always.check() == unsat
 
-                s_never = Solver()
-                s_never.add(base, P_form)
+                s_never = Solver(ctx=self.ctx)
+                s_never.add(domain_base, P_form)
                 precondition_never = s_never.check() == unsat
 
             if precondition_always:
@@ -100,13 +106,14 @@ class ItemClassifier:
                 post_invariant = "NONE"
             elif not vacuous:
                 # Item has postconditions and is reachable
+                # Use full_base to include behavioral constraints from codeBlocks
                 with profile_block('z3_postcondition_check', {'item_id': item_id}):
-                    s_impl = Solver()
-                    s_impl.add(base, P_form, Not(Q_form))
+                    s_impl = Solver(ctx=self.ctx)
+                    s_impl.add(full_base, P_form, Not(Q_form))
                     tautological_under_P = s_impl.check() == unsat
 
-                    s_feas = Solver()
-                    s_feas.add(base, P_form, Q_form)
+                    s_feas = Solver(ctx=self.ctx)
+                    s_feas.add(full_base, P_form, Q_form)
                     infeasible_under_P = s_feas.check() == unsat
 
                 if tautological_under_P:
@@ -121,17 +128,18 @@ class ItemClassifier:
 
             # ------------------------------
             # Global Q flags (only meaningful for items with postconditions)
-            # q_globally_false: UNSAT(base ∧ Q)
-            # q_globally_true:  UNSAT(base ∧ ¬Q)
+            # q_globally_false: UNSAT(full_base ∧ Q)
+            # q_globally_true:  UNSAT(full_base ∧ ¬Q)
+            # Use full_base to include behavioral constraints from codeBlocks
             # ------------------------------
             if has_postconditions:
                 with profile_block('z3_global_flags_check', {'item_id': item_id}):
-                    s_q_false = Solver()
-                    s_q_false.add(base, Q_form)
+                    s_q_false = Solver(ctx=self.ctx)
+                    s_q_false.add(full_base, Q_form)
                     q_globally_false = s_q_false.check() == unsat
 
-                    s_q_true = Solver()
-                    s_q_true.add(base, Not(Q_form))
+                    s_q_true = Solver(ctx=self.ctx)
+                    s_q_true.add(full_base, Not(Q_form))
                     q_globally_true = s_q_true.check() == unsat
             else:
                 # Items without postconditions have no global Q flags

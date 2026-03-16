@@ -1,25 +1,25 @@
 """
-QMLEngine - Unified Processing Engine for QML Analysis and Flow
+QMLEngine - Unified Processing Engine for QML Validation and Flow
 
-This module provides the common pipeline used by both analyzer and flow modes:
+This module provides the common pipeline used by both validation and flow modes:
 1. Z3 constraint generation from preconditions, postconditions, and code blocks (StaticBuilder)
 2. Dependency discovery and topology building (QMLTopology)
 3. Kahn's topological sorting for stable ordering
 
-Both Flow and Analysis modes use this same foundation, then add mode-specific processing.
+Both Flow and Validation modes use this same foundation, then add mode-specific processing.
 """
 
 import logging
 from typing import Dict, List, Set, Optional, Any
 
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.core.qml_topology import QMLTopology
 from askalot_qml.z3.static_builder import StaticBuilder
 
 
 class QMLEngine:
     """
-    Unified processing engine that provides the common pipeline for both flow and analysis modes.
+    Unified processing engine that provides the common pipeline for both flow and validation modes.
 
     Common Pipeline:
     1. StaticBuilder - Generate Z3 constraints from preconditions, postconditions, code blocks
@@ -27,10 +27,10 @@ class QMLEngine:
 
     This foundation is then used by:
     - FlowProcessor - For runtime navigation with simple diagrams
-    - AnalysisProcessor - For static analysis with Z3 classification
+    - ValidationProcessor - For static validation with Z3 classification
     """
 
-    def __init__(self, questionnaire_state: QuestionnaireState):
+    def __init__(self, questionnaire_state: QMLState):
         """
         Initialize the unified QML processing engine.
 

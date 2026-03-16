@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, Union
 from .table import Table
 
 
@@ -11,27 +11,26 @@ class ItemProxy:
         self.id = item.get('id')
         self.raw_outcome = item.get('outcome')
         self.kind = item.get('kind')
-        self.from_outcome(self.raw_outcome)
 
-        # Extract additional properties from the item's input configuration
+        # Extract input configuration BEFORE from_outcome so control type
+        # is available for type coercion decisions (text vs numeric controls).
         self.input_props = {}
         input_config = item.get('input', {})
 
-        # Extract common properties like min, max, etc.
         for prop in ['min', 'max', 'step', 'default', 'left', 'right', 'on', 'off']:
             if prop in input_config:
                 self.input_props[prop] = input_config[prop]
                 setattr(self, prop, input_config[prop])
 
-        # Extract labels dictionary if present
         if 'labels' in input_config:
             self.labels = input_config['labels']
             self.input_props['labels'] = input_config['labels']
 
-        # Store the control type
         if 'control' in input_config:
             self.control = input_config['control']
             self.input_props['control'] = input_config['control']
+
+        self.from_outcome(self.raw_outcome)
 
     def __repr__(self):
         return f"<ItemProxy id={self.id} outcome={self.outcome}>"
@@ -54,13 +53,20 @@ class ItemProxy:
             if outcome is None or outcome == {}:
                 self.outcome = None
                 return
-            
+
             # Handle both dictionary format {'_': value} and primitive values
             if isinstance(outcome, dict):
-                self.outcome = outcome.get('_')
+                raw_value = outcome.get('_')
             else:
                 # Direct primitive value
-                self.outcome = outcome
+                raw_value = outcome
+
+            # Coerce string values to numeric types when possible.
+            # MCP and JSON serialization can turn integers into strings
+            # (e.g., outcome "7" instead of 7), causing precondition
+            # comparisons like `q_age.outcome >= 18` to fail with TypeError.
+            # Skip coercion for text controls where string outcomes are intentional.
+            self.outcome = self._coerce_outcome(raw_value)
             return
             
         elif self.kind == "QuestionGroup":
@@ -79,8 +85,8 @@ class ItemProxy:
             for i in range(size):
                 key = f'_{i}'
                 if key in outcome:
-                    result[i] = outcome[key]
-                    
+                    result[i] = self._coerce_outcome(outcome[key])
+
             self.outcome = result
             return
             
@@ -133,7 +139,7 @@ class ItemProxy:
                     
                 row = int(parts[0])
                 col = int(parts[1])
-                table[row, col] = value
+                table[row, col] = self._coerce_outcome(value)
                 
             self.outcome = table
             return
@@ -143,6 +149,36 @@ class ItemProxy:
 
 
         
+    # Controls where string outcomes are intentional (open-ended text input).
+    # The canonical control name is 'Textarea' (per QML schema).
+    _TEXT_CONTROLS = frozenset({'textarea'})
+
+    def _coerce_outcome(self, value: Any) -> Any:
+        """Coerce string values to int or float when the control is numeric.
+
+        JSON/MCP serialization can turn numeric outcomes into strings
+        (e.g., "7" instead of 7), causing precondition comparisons like
+        ``q_age.outcome >= 18`` to fail with TypeError.
+
+        Textarea controls are excluded — their string outcomes are
+        intentional and must not be coerced.
+        """
+        if not isinstance(value, str):
+            return value
+        # Preserve strings for open-ended text controls
+        control = getattr(self, 'control', None)
+        if control and control.lower() in self._TEXT_CONTROLS:
+            return value
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            pass
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            pass
+        return value
+
     def to_outcome(self) -> Dict[str, Any]:
         """
         Convert the proxy representation of outcome back to the storage dictionary format.

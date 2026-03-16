@@ -316,5 +316,94 @@ class TestItemProxy(unittest.TestCase):
         })
 
 
+@pytest.mark.unit
+@pytest.mark.models
+class TestItemProxyStringCoercion(unittest.TestCase):
+    """Test numeric coercion of string outcomes from MCP/JSON serialization."""
+
+    def test_question_string_int_outcome_coerced(self):
+        """String integer outcomes should be coerced to int."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': '7', 'input': {'control': 'Radio'}}
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome, 7)
+        self.assertIsInstance(proxy.outcome, int)
+
+    def test_question_string_int_dict_outcome_coerced(self):
+        """String integer in dict format should be coerced to int."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': {'_': '42'}, 'input': {'control': 'Editbox'}}
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome, 42)
+        self.assertIsInstance(proxy.outcome, int)
+
+    def test_question_string_float_outcome_coerced(self):
+        """String float outcomes should be coerced to float."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': '3.14', 'input': {'control': 'Slider'}}
+        proxy = ItemProxy(item)
+        self.assertAlmostEqual(proxy.outcome, 3.14)
+        self.assertIsInstance(proxy.outcome, float)
+
+    def test_question_textarea_outcome_preserved(self):
+        """Non-numeric string outcomes in Textarea should stay as strings."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': 'hello world', 'input': {'control': 'Textarea'}}
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome, 'hello world')
+        self.assertIsInstance(proxy.outcome, str)
+
+    def test_question_textarea_numeric_string_not_coerced(self):
+        """Numeric strings in Textarea controls should NOT be coerced to int."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': '42', 'input': {'control': 'Textarea'}}
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome, '42')
+        self.assertIsInstance(proxy.outcome, str)
+
+    def test_question_int_outcome_unchanged(self):
+        """Integer outcomes should pass through unchanged."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': 7, 'input': {'control': 'Radio'}}
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome, 7)
+        self.assertIsInstance(proxy.outcome, int)
+
+    def test_question_bool_outcome_unchanged(self):
+        """Boolean outcomes should not be coerced to int."""
+        item = {'id': 'q1', 'kind': 'Question', 'outcome': True, 'input': {'control': 'Switch'}}
+        proxy = ItemProxy(item)
+        self.assertIs(proxy.outcome, True)
+
+    def test_precondition_comparison_with_coerced_outcome(self):
+        """Coerced outcomes should work in precondition comparisons."""
+        item = {'id': 'q_age', 'kind': 'Question', 'outcome': {'_': '25'}, 'input': {'control': 'Editbox'}}
+        proxy = ItemProxy(item)
+        self.assertTrue(proxy.outcome >= 18)
+        self.assertFalse(proxy.outcome >= 30)
+
+    def test_equality_comparison_with_coerced_outcome(self):
+        """Coerced outcomes should work with == comparisons (the silent bug)."""
+        item = {'id': 'q_emp', 'kind': 'Question', 'outcome': {'_': '1'}, 'input': {'control': 'Radio'}}
+        proxy = ItemProxy(item)
+        self.assertTrue(proxy.outcome == 1)
+        self.assertFalse(proxy.outcome == 2)
+
+    def test_question_group_string_values_coerced(self):
+        """QuestionGroup string values should be coerced to numeric."""
+        item = {
+            'id': 'qg1', 'kind': 'QuestionGroup',
+            'outcome': {'_0': '10', '_1': '20', '_2': '30'},
+            'input': {'control': 'Checkbox'}
+        }
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome, [10, 20, 30])
+
+    def test_matrix_question_string_values_coerced(self):
+        """MatrixQuestion string values should be coerced to numeric."""
+        item = {
+            'id': 'mq1', 'kind': 'MatrixQuestion',
+            'outcome': {'_0_0': '1', '_0_1': '2', '_1_0': '3', '_1_1': '4'},
+            'input': {'control': 'RadioMatrix'}
+        }
+        proxy = ItemProxy(item)
+        self.assertEqual(proxy.outcome[0, 0], 1)
+        self.assertEqual(proxy.outcome[1, 1], 4)
+
+
 if __name__ == '__main__':
     unittest.main()

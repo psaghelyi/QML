@@ -58,6 +58,7 @@ class GlobalFormula:
         """
         self.logger = logging.getLogger(__name__)
         self.builder = builder
+        self.ctx = builder.ctx
 
     def check(self) -> GlobalFormulaResult:
         """
@@ -66,7 +67,7 @@ class GlobalFormula:
         Returns:
             GlobalFormulaResult with satisfiability status and optional witness
         """
-        solver = Solver()
+        solver = Solver(ctx=self.ctx)
 
         # Add base constraints B (domain-only constraints as per thesis)
         # B := ∧_i D_i(S_i) where D_i are domain constraints (min/max, enumeration)
@@ -165,7 +166,7 @@ class GlobalFormula:
             return []
 
         conflicting = []
-        solver = Solver()
+        solver = Solver(ctx=self.ctx)
         solver.add(self.builder.get_domain_base())
 
         # Add implications one by one to find which causes UNSAT

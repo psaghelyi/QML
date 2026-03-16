@@ -1,9 +1,9 @@
 ## Overview
 
-The **askalot_qml** module provides Z3-driven questionnaire analysis capabilities with two distinct processors:
+The **askalot_qml** module provides Z3-driven questionnaire validation capabilities with two distinct processors:
 
 - **FlowProcessor**: Runtime questionnaire traversal for conducting interviews
-- **AnalysisProcessor**: Offline static analysis for questionnaire validation
+- **ValidationProcessor**: Offline static validation for questionnaire design
 
 Both processors share a common pipeline through QMLEngine that handles dependency graph construction and topological sorting.
 
@@ -12,10 +12,10 @@ Both processors share a common pipeline through QMLEngine that handles dependenc
 ```
 askalot_qml/
 ├── api/                           # Flask blueprints for web services
-│   ├── analysis_blueprint.py     # Static analysis endpoints
+│   ├── validation_blueprint.py    # Static validation endpoints
 │   └── flow_blueprint.py         # Flow navigation endpoints
 ├── core/                          # Core processing engines
-│   ├── analysis_processor.py     # Static analysis with Z3 classification
+│   ├── validation_processor.py    # Static validation with Z3 classification
 │   ├── flow_processor.py         # Runtime navigation
 │   ├── python_runner.py          # Safe Python code execution
 │   ├── qml_diagram.py            # Mermaid diagram generation
@@ -24,7 +24,7 @@ askalot_qml/
 │   └── qml_topology.py           # Dependency graph and topological sort
 ├── models/                        # Data models
 │   ├── item_proxy.py             # Runtime item wrapper for code blocks
-│   ├── questionnaire_state.py    # Survey state management
+│   ├── qml_state.py              # Survey state management
 │   └── table.py                  # Matrix question support
 └── z3/                           # Z3 constraint solving
     ├── global_formula.py         # Global satisfiability check (Level 2)
@@ -71,6 +71,27 @@ Three levels of increasing thoroughness, implemented in the `z3/` module:
 - **Global** suffices when you only need to verify some valid completion exists
 - **Path-based** is needed to detect dead code (CONDITIONAL items made unreachable by accumulated constraints)
 
+## Z3 Thread Safety
+
+Z3's global context (`main_ctx()`) is **not thread-safe**. In multi-threaded environments (e.g., Armiger's watchdog Observer thread, gunicorn with threads), garbage collection of Z3 wrapper objects on background threads races with solver operations on the main thread, causing `ast.cpp:388` assertion violations and segfaults.
+
+**Solution**: Each `StaticBuilder` creates a per-analysis `z3.Context()` and propagates it to all Z3 consumers:
+
+```
+StaticBuilder (owns ctx = z3.Context())
+    ├── PragmaticZ3Compiler (receives ctx)
+    ├── ItemClassifier (reads builder.ctx)
+    ├── GlobalFormula (receives ctx)
+    └── PathBasedValidator (receives ctx)
+```
+
+**Context propagation rules**:
+- Leaf constructors (`Int`, `IntVal`, `BoolVal`, `Bool`, `Solver`) require explicit `ctx` parameter
+- Compound functions (`And`, `Or`, `Not`, `Implies`, `If`) infer context from their arguments automatically
+- `QMLTopology._detect_cycles_z3()` creates its own local `z3.Context()` since it runs independently
+
+**When writing new Z3 code**: Always pass `self.ctx` (or the builder's context) to `Int()`, `IntVal()`, `BoolVal()`, `Bool()`, and `Solver()` constructors. Never rely on the global context.
+
 ## FlowProcessor - Runtime Navigation
 
 **Purpose**: Conduct interactive interviews by traversing the questionnaire graph.
@@ -82,11 +103,10 @@ Three levels of increasing thoroughness, implemented in the `z3/` module:
 1. **Initialize questionnaire state** - Execute codeInit, create ItemProxy instances, set up navigation path
 2. **Navigate forward/backward** - Follow topological order, evaluate preconditions, track history
 3. **Process item responses** - Validate postconditions, execute code blocks, propagate state
-4. **Generate flow diagrams** - Visualize current position with visited/pending coloring
 
 ### State Management Architecture
 
-The QuestionnaireState ([models/questionnaire_state.py](askalot_qml/models/questionnaire_state.py)) maintains:
+The QMLState ([models/qml_state.py](askalot_qml/models/qml_state.py)) maintains:
 
 - **items[]**: Flat list of all questionnaire items
 - **history[]**: Navigation history (item IDs visited in order)
@@ -96,7 +116,6 @@ The QuestionnaireState ([models/questionnaire_state.py](askalot_qml/models/quest
 Each item stores:
 - **outcome**: User's response value
 - **visited**: Whether item has been completed
-- **disabled**: Whether item is skipped
 - **context**: Dictionary of Python variables at this execution point
 
 This architecture enables **pause/resume** of interviews: by storing the context at each item, we can restore the exact Python state when resuming a survey.
@@ -105,10 +124,11 @@ This architecture enables **pause/resume** of interviews: by storing the context
 
 **Forward Navigation** (no Z3 at runtime):
 1. Iterate through pre-computed navigation_path (topological order)
-2. Skip disabled and visited items (unless last in path)
+2. Skip visited items (unless last in path)
 3. Evaluate preconditions via Python eval (NOT Z3)
-4. Return first item with satisfied preconditions
-5. Track item in history for backward navigation
+4. Items with unsatisfied preconditions are silently skipped
+5. Return first item with satisfied preconditions
+6. Track item in history for backward navigation
 
 **Backward Navigation**:
 1. Pop current item from history stack
@@ -131,18 +151,18 @@ This architecture enables **pause/resume** of interviews: by storing the context
 - No Z3 classification during navigation
 - Base diagram cached for reuse
 
-## AnalysisProcessor - Static Analysis
+## ValidationProcessor - Static Validation
 
 **Purpose**: Validate questionnaire design by detecting structural problems before deployment.
 
-**File**: [core/analysis_processor.py](askalot_qml/core/analysis_processor.py)
+**File**: [core/validation_processor.py](askalot_qml/core/validation_processor.py)
 
 ### Responsibilities
 
 1. **Per-item classification** - Determine reachability and postcondition effects
 2. **Global formula check** - Verify at least one valid completion exists
-3. **Path-based analysis** - Detect dead code from accumulated constraints
-4. **Generate analysis diagrams** - Visualize classification results with semantic coloring
+3. **Path-based validation** - Detect dead code from accumulated constraints
+4. **Generate validation diagrams** - Visualize classification results with semantic coloring
 
 ### Per-Item Classification
 
@@ -163,7 +183,7 @@ The ItemClassifier ([z3/item_classifier.py](askalot_qml/z3/item_classifier.py)) 
 | INFEASIBLE | UNSAT(B ∧ P ∧ Q) | Postcondition can never be satisfied (design error) |
 | NONE | No postcondition defined | No validation constraints |
 
-### Analysis Diagram Coloring
+### Validation Diagram Coloring
 
 | Color | Class | Meaning |
 |-------|-------|---------|
@@ -210,7 +230,7 @@ When cycles are detected, DFS is used to find the actual cycle paths for error r
 
 Implements separated diagram generation:
 1. **Base diagram** (cacheable): Structure only - items, variables, preconditions, postconditions
-2. **Dynamic coloring**: Applied at runtime based on mode (flow or analysis)
+2. **Dynamic coloring**: Applied at runtime based on mode (flow or validation)
 
 ## QML Language
 
@@ -224,6 +244,12 @@ Key elements:
   - **postcondition**: List of predicates with hints for validation
   - **codeBlock**: Python code executed after response
 
+### Domain Constraints for Z3
+
+StaticBuilder extracts domain constraints D_i(S_i) from item input specs for base constraint B. Supports:
+- **Numeric controls** (Editbox, Slider, Range): `min`/`max` bounds
+- **Choice controls** (Radio, RadioButton, Dropdown, Checkbox, Switch): Enumeration via `labels` (schema format: `{1: "Yes", 2: "No"}`) or `options` (legacy: `[{value: 1, label: "Yes"}, ...]`)
+
 ## API Endpoints
 
 ### Flow Blueprint
@@ -231,12 +257,11 @@ Key elements:
 - `GET /api/flow/current-item` - Get current item in navigation
 - `POST /api/flow/evaluate-item` - Process user response
 - `GET /api/flow/previous-item` - Navigate backward
-- `GET /api/flow/diagram` - Get flow diagram with current item highlighted
 - `GET /api/flow/navigation-path` - Get complete navigation path
 
-### Analysis Blueprint
+### Validation Blueprint
 
-- `GET /api/qml/analysis` - Full analysis with Z3 classification
+- `GET /api/qml/validation` - Full validation with Z3 classification
 - `GET /api/qml/validate` - Validate QML structure
 - `GET /api/qml/files` - List available QML files
 
@@ -264,10 +289,10 @@ make test-integration  # Integration tests only
 
 ```python
 # Top-level imports (recommended)
-from askalot_qml import FlowProcessor, AnalysisProcessor, QuestionnaireState
+from askalot_qml import FlowProcessor, ValidationProcessor, QMLState
 
 # Explicit imports
-from askalot_qml.core import FlowProcessor, AnalysisProcessor
+from askalot_qml.core import FlowProcessor, ValidationProcessor
 from askalot_qml.z3 import StaticBuilder, ItemClassifier
 ```
 

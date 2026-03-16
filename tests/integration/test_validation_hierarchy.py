@@ -14,7 +14,7 @@ import pytest
 from pathlib import Path
 
 from askalot_qml.core.qml_loader import QMLLoader
-from askalot_qml.models.questionnaire_state import QuestionnaireState
+from askalot_qml.models.qml_state import QMLState
 from askalot_qml.core.qml_engine import QMLEngine
 from askalot_qml.z3 import (
     ItemClassifier,
@@ -24,15 +24,15 @@ from askalot_qml.z3 import (
 
 
 # Path to fixture files
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
-def load_qml_fixture(filename: str) -> QuestionnaireState:
-    """Load a QML fixture file and return QuestionnaireState."""
-    loader = QMLLoader()
+def load_qml_fixture(filename: str) -> QMLState:
+    """Load a QML fixture file and return QMLState."""
+    loader = QMLLoader(schema_path=None)
     qml_path = FIXTURES_DIR / filename
     data = loader.load_from_path(str(qml_path))
-    return QuestionnaireState(data)
+    return QMLState(data)
 
 
 def create_engine(filename: str) -> QMLEngine:

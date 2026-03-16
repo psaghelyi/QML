@@ -255,11 +255,8 @@ class PythonRunner:
             local_env = {**kwargs}
 
             # Evaluate the expression safely
-            try:
-                result = eval(expr, global_env, local_env)
-                return bool(result)
-            except Exception as e:
-                # Log the error and return False
-                print(f"Error evaluating expression '{expr}': {e}")
-                return False
+            # Raises on error so FlowProcessor._evaluate_condition can
+            # apply its fail-open policy (return True + log warning).
+            result = eval(expr, global_env, local_env)
+            return bool(result)
 
