@@ -35,7 +35,7 @@ The CCHS Cycle 3.1 is a modular health survey with approximately 60 content modu
 | Blocks | 43 |
 | Preconditions | 227 |
 | Postconditions | 1 |
-| Variables | 19 |
+| Variables | 91 |
 | Cycles | **0** |
 | Connected Components | 103 |
 | Structural Validity | `true` |

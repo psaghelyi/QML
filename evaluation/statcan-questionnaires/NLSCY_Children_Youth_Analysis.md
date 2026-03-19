@@ -52,7 +52,7 @@ These were adjustments needed to express the imperative GOTO-based routing as de
 | Blocks | 12 |
 | Preconditions | 131 |
 | Postconditions | 0 |
-| Variables | 18 |
+| Variables | 22 |
 | Cycles | **0** |
 | Connected Components | 28 |
 | Structural Validity | `true` |

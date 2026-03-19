@@ -41,7 +41,7 @@ These were deliberate simplifications in the QML conversion to handle constructs
 | Blocks | 23 |
 | Preconditions | 170 |
 | Postconditions | 0 |
-| Variables | 77 |
+| Variables | 78 |
 | Cycles | **0** |
 | Connected Components | 38 |
 | Structural Validity | `true` |

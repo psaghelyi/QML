@@ -66,7 +66,7 @@ These were adaptations required to express the imperative PDF routing in a decla
 | Preconditions (ALWAYS) | 17 |
 | Preconditions (CONDITIONAL) | 187 |
 | Postconditions | 0 |
-| Variables | 29 |
+| Variables | 30 |
 | Cycles | **0** |
 | Connected Components | 17 |
 | Items classified NEVER | **0** |

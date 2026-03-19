@@ -59,7 +59,7 @@ These were deliberate simplifications in the QML conversion to achieve a structu
 | Blocks | 12 |
 | Preconditions | 138 |
 | Postconditions | 1 |
-| Variables | 11 |
+| Variables | 16 |
 | Cycles | **0** |
 | Connected Components | 84 |
 | Structural Validity | `true` |

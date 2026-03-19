@@ -41,7 +41,7 @@ These were errors in the original QML conversion, NOT problems in the original P
 | Blocks | 29 |
 | Preconditions | 219 |
 | Postconditions | 2 |
-| Variables | 22 |
+| Variables | 23 |
 | Cycles | **0** |
 | Connected Components | 13 |
 | Structural Validity | `true` |

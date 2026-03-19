@@ -1,0 +1,6 @@
+{
+    "yaml.schemas": {
+        "kubernetes": "*.yaml",
+        "./askalot_qml/askalot_qml/schema/qml-schema.json": "*.qml"
+    }
+}

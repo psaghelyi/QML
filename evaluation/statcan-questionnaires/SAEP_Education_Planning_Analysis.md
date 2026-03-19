@@ -50,7 +50,7 @@ These were errors in the prior QML draft that were fixed to achieve faithful sem
 |--------|-------|
 | Items | 60 |
 | Blocks | 11 |
-| Preconditions | 63 |
+| Preconditions | 47 |
 | Postconditions | 0 |
 | Variables | 14 |
 | Cycles | **0** |

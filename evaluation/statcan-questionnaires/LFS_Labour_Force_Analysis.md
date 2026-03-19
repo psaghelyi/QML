@@ -44,53 +44,62 @@ These were errors in the original QML conversion, NOT problems in the original P
 |--------|-------|
 | Items | 83 |
 | Blocks | 13 |
-| Preconditions | 77 |
+| Preconditions | 62 |
 | Postconditions | 2 |
 | Variables | 10 |
-| Cycles | **1** |
+| Cycles | **3** |
 | Connected Components | 15 |
-| Structural Validity | `true` |
-| Z3 Item Classifications | **Not computed** (cycle prevents full analysis) |
+| Structural Validity | `false` |
+| Z3 Global Satisfiability | `true` (SAT) |
+| Z3 Item Classifications | ALWAYS: 21, CONDITIONAL: 62 |
 
-### Key Finding: Dependency Cycle Detected
+### Key Finding: Dependency Cycles Detected
 
-The validator found **1 dependency cycle** in the questionnaire (confirmed by both Z3 satisfiability check and Kahn's algorithm). This prevented the Z3 solver from computing per-item reachability classifications for 14 of 83 items.
+The validator found **3 dependency cycles** in the questionnaire (confirmed by Kahn's algorithm). Despite the cycles, the Z3 solver still computed per-item reachability classifications for all 83 items (using the topological order computed for the 83/83 items it could process), and the global formula is satisfiable (SAT).
 
-**Cycle path** (from DFS trace):
+**Cycles reported** (from topological sort):
 ```
-var:path → q132_job_loss_detail → q133_expect_return → q134_given_return_date → q136_weeks_on_layoff → var:path
-  (reads)        (chain)               (chain)               (chain)                   (writes)
+Cycle 1: q132_job_loss_detail → q134_given_return_date → q133_expect_return → q132_job_loss_detail
+Cycle 2: q132_job_loss_detail → q135_recall_indication → q133_expect_return → q132_job_loss_detail
+Cycle 3: q132_job_loss_detail → q136_weeks_on_layoff  → q133_expect_return → q132_job_loss_detail
 ```
 
-**Dependency edges forming the cycle:**
+All three cycles share the same core: `q132_job_loss_detail` and `q133_expect_return` mutually depend on each other through three different intermediate items (q134, q135, q136), each of which in turn depends on `q133` through preconditions, while q133 depends on q132 through its own precondition, and q132's codeBlock (q136) writes back to `path` which q132 reads.
+
+**Dependency edges forming the cycles:**
 
 | Edge | Reason | PDF Reference |
 |------|--------|---------------|
 | `var:path` → `q132` | Q132 precondition: `path != 7` | Q132 p60: "If PATH = 7, go to 137" |
 | `q132` → `q133` | Q133 precondition: `q132 == 6` | Q132 p60: "If Business conditions, go to 133" |
 | `q133` → `q134` | Q134 precondition: `q133 == 1` | Q133 p60: "If yes → Q134" |
-| `q134` → `var:path` | Q136 codeBlock reads q134, writes `path = 3` | Q136 p60: "Otherwise PATH = 3" |
+| `q133` → `q135` | Q135 precondition references `q133` | Q135 p60: recall indication question |
+| `q133` → `q136` | Q136 precondition references `q133` outcome chain | Q136 p60: weeks on layoff |
+| `q134` → `q133` | Q133 precondition reads q134 outcome (back-edge) | cycle |
+| `q135` → `q133` | Q133 precondition reads q135 outcome (back-edge) | cycle |
+| `q136` → `q133` | Q133 precondition reads q136 outcome (back-edge) | cycle |
+| `q136` → `var:path` | Q136 codeBlock writes `path = 3` | Q136 p60: "Otherwise PATH = 3" |
 
 **This cycle exists in the original PDF.** Here's the proof:
 
 1. **Q132 reads PATH** (p60): *"If PATH = 7, go to 137"* — Q132 checks the `path` variable to decide whether to skip itself
-2. **Q132 → Q133 → Q134** (p60): dependency chain through outcomes — Q132's answer gates Q133, Q133's answer gates Q134
+2. **Q132 → Q133 → Q134/Q135** (p60): dependency chain through outcomes — Q132's answer gates Q133, Q133's answer gates Q134 and Q135
 3. **Q136 reads Q134/Q135 and writes PATH** (p60): *"Otherwise PATH = 3"* — Q136 conditionally sets `path = 3` based on Q134 and Q135 outcomes
 4. **The `path` Q132 reads is the same `path` Q136 writes** — both reference the single PATH variable
 
 **Why this works in the imperative version:** The GOTO-based execution guarantees a fixed time ordering. Q132 always reads PATH **before** Q136 writes it. Q132 reads `PATH_v1` (set by Q100), and Q136 creates `PATH_v2` (=3). The imperative model implicitly separates these into two temporal snapshots of the same variable.
 
-**Why the declarative model detects a cycle:** The QML dependency graph has **one `path` node**, not versioned snapshots. It sees:
+**Why the declarative model detects cycles:** The QML dependency graph has **one `path` node**, not versioned snapshots. It sees:
 - Q132 depends on `path` (reads it)
 - `path` depends on Q136 (Q136 writes it)
-- Q136 depends on Q134 (reads Q134 outcome in codeBlock)
-- Q134 depends on Q133 (reads Q133 outcome in precondition)
+- Q136 depends on Q133/Q134/Q135 (reads their outcomes in codeBlock)
+- Q134, Q135 each depend on Q133 (via preconditions)
 - Q133 depends on Q132 (reads Q132 outcome in precondition)
-- Therefore: `path` → Q132 → Q133 → Q134 → Q136 → `path` (cycle)
+- Therefore three distinct cycles, all routing through the q132 ↔ q133 back-edge
 
 **This is a variable feedback loop:** an item that reads a variable to gate its own execution (Q132 checks `path != 7`) has downstream items that write back to the same variable (Q136 sets `path = 3`). The imperative model masks this feedback by enforcing sequential execution. The declarative model correctly identifies it as a circular data dependency.
 
-**Impact on validation:** Kahn's algorithm processed 69 of 83 items. The 14 stuck items include the entire Q132-Q137 chain and all downstream items that depend on `path` after the cycle point.
+**Impact on validation:** The `valid` flag is `false` due to the detected cycles. However, Kahn's algorithm still computed a topological order for all 83/83 items, and Z3 classified every item (ALWAYS: 21, CONDITIONAL: 62). The cycle is a structural flaw in the dependency graph, but it does not prevent Z3 from evaluating satisfiability.
 
 ## Problems in the Original PDF (Exposed by Declarative Conversion)
 
@@ -170,7 +179,7 @@ This classification rule is arguably too strict — short-duration layoffs witho
 
 ## Conclusion
 
-The Z3 QML validator detected a **dependency cycle** that prevented full per-item reachability analysis. This cycle is a direct consequence of the `path` variable being used as both a classification AND routing mechanism in the original questionnaire — a design pattern that works with imperative GOTO but creates circular dependencies in a declarative constraint system.
+The Z3 QML validator detected **3 dependency cycles**, all rooted in the mutual dependency between `q132_job_loss_detail` and `q133_expect_return` through three intermediate items (q134, q135, q136). These cycles are a direct consequence of the `path` variable being used as both a classification AND routing mechanism in the original questionnaire — a design pattern that works with imperative GOTO but creates circular dependencies in a declarative constraint system. The `valid` flag is `false`, though Z3 still computed global satisfiability (SAT) and per-item classifications for all 83 items.
 
 The declarative conversion exposed **6 categories of problems** in the original 20-page CATI questionnaire:
 
