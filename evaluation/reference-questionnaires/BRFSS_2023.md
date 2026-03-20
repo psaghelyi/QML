@@ -1,7 +1,7 @@
 # 2023 BRFSS Questionnaire: Declarative Conversion Analysis
 
 **Source:** CDC, Behavioral Risk Factor Surveillance System (BRFSS), 2023 Questionnaire, 127 pages
-**QML File:** `evaluation/reference-questionnaires/BRFSS_2023.qml`
+**QML File:** `BRFSS_2023.qml`
 **Date:** 2026-03-19
 
 ## Objective

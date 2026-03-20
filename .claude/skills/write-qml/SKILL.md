@@ -349,20 +349,32 @@ Before outputting the QML, verify every point:
 13. PATH-like variables are not both read in preconditions AND written in downstream
     codeBlocks (use separate variables for initial and refined classification)
 14. Age boundaries match the source exactly (watch for off-by-one: >= 15 vs >= 16)
+15. Waterfall/cascade patterns ("first YES wins") use direct outcome references in
+    preconditions, NOT a shared routing variable. A shared variable that's both read in
+    preconditions and written in codeBlocks by items in the same cascade creates dependency
+    cycles (see Pitfall 9 below)
 
 ## Workflow
 
 1. **Understand requirements** — Ask clarifying questions about the survey's purpose,
    target audience, and conditional logic
-2. **Design block structure** — Group related questions into logical sections
-3. **Choose controls** — Match each question to the right input control type
-4. **Write items** — Create each item with appropriate kind and input
-5. **Add preconditions** — Define when each conditional question appears
-6. **Add postconditions** — Define validation constraints with helpful hints
-7. **Add code blocks** — Implement scoring, classification, or routing variables
-8. **Initialize variables** — Ensure all variables are declared in `codeInit`
-9. **Validate** — Run through the checklist above
-10. **Save** — Use `save_qml_file` (Askalot MCP) or write the file locally
+2. **Build question inventory** (for large sources, 20+ pages) — Before writing any QML,
+   read the entire source document and build a structured inventory of every question node.
+   For each question, record: ID/number, section, question text, response options with codes,
+   skip/routing instruction, and any interviewer notes. Count total substantive questions —
+   this count is your completeness target. Write the inventory to a file (e.g.,
+   `question_inventory.md`) so it can be referenced during QML generation. This step is
+   critical for sources with 50+ questions — it prevents missed questions and ensures the
+   block structure reflects the source's organization.
+3. **Design block structure** — Group related questions into logical sections
+4. **Choose controls** — Match each question to the right input control type
+5. **Write items** — Create each item with appropriate kind and input
+6. **Add preconditions** — Define when each conditional question appears
+7. **Add postconditions** — Define validation constraints with helpful hints
+8. **Add code blocks** — Implement scoring, classification, or routing variables
+9. **Initialize variables** — Ensure all variables are declared in `codeInit`
+10. **Validate** — Run through the checklist above
+11. **Save** — Use `save_qml_file` (Askalot MCP) or write the file locally
 
 ## Validation
 

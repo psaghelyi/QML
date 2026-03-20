@@ -1,7 +1,7 @@
 # CPS Basic Demographic Items Booklet: Declarative Conversion Analysis
 
 **Source:** U.S. Census Bureau, Current Population Survey (CPS), Basic Demographic Items Booklet, 14 pages
-**QML File:** `evaluation/reference-questionnaires/Demographics.qml`
+**QML File:** `evaluation/Demographics.qml`
 **Date:** 2026-03-19
 
 ## Objective

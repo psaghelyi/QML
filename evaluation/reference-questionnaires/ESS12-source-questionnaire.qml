@@ -14,6 +14,11 @@ questionnaire:
     had_paid_work = 0
     living_with_partner = 0
     cohabiting = 0
+    has_partner_in_household = 0
+    has_children_in_household = 0
+    b16_multiple = 0
+    partner_in_paid_work = 0
+    partner_had_paid_work = 0
     discriminated = 0
     assisted = 0
     recontact = 0
@@ -1086,6 +1091,138 @@ questionnaire:
             - predicate: q_b4_month.outcome >= 1 and q_b4_month.outcome <= 12
               hint: "Please enter a valid month of birth (01-12)."
 
+        # ── B5-B7: Household roster (one representative other member) ──
+        # PDF: B5-B7 are repeated for up to 8 other household members.
+        # QML limitation: dynamic loops are not supported, so we represent
+        # one other household member. The key routing variable (relationship
+        # to respondent) is captured here to gate downstream questions.
+
+        - id: q_b5
+          kind: Question
+          title: "What is the sex of the other person in your household (Person 1)?"
+          precondition:
+            - predicate: q_b1.outcome >= 2
+          input:
+            control: Radio
+            labels:
+              1: "Male"
+              2: "Female"
+
+        - id: q_b6_month
+          kind: Question
+          title: "In which month was this person (Person 1) born? (01-12)"
+          precondition:
+            - predicate: q_b1.outcome >= 2
+          input:
+            control: Editbox
+            min: 1
+            max: 12
+          postcondition:
+            - predicate: q_b6_month.outcome >= 1 and q_b6_month.outcome <= 12
+              hint: "Please enter a valid month of birth (01-12)."
+
+        - id: q_b6_year
+          kind: Question
+          title: "In which year was this person (Person 1) born? (4 digits)"
+          precondition:
+            - predicate: q_b1.outcome >= 2
+          input:
+            control: Editbox
+            min: 1900
+            max: 2026
+          postcondition:
+            - predicate: q_b6_year.outcome >= 1900 and q_b6_year.outcome <= 2026
+              hint: "Please enter a valid year of birth in full (4 digits)."
+
+        - id: q_b7
+          kind: Question
+          title: "What is this person's (Person 1's) relationship to you? This person is your..."
+          precondition:
+            - predicate: q_b1.outcome >= 2
+          input:
+            control: Radio
+            labels:
+              1: "Husband, wife, or partner"
+              2: "Son or daughter (including step, adopted, foster, or child of partner)"
+              3: "Parent, parent-in-law, partner's parent, or step parent"
+              4: "Brother or sister (including step, adopted, or foster)"
+              5: "Other relative"
+              6: "Other non-relative"
+          codeBlock: |
+            if q_b7.outcome == 1:
+                has_partner_in_household = 1
+            if q_b7.outcome == 2:
+                has_children_in_household = 1
+
+        # ── B8-B12: Marital status and partner details ──
+
+        - id: q_b8
+          kind: Question
+          title: "Which one of the following descriptions best describes your relationship to your husband, wife, or partner?"
+          precondition:
+            - predicate: has_partner_in_household == 1
+          input:
+            control: Radio
+            labels:
+              1: "Legally married"
+              2: "In a legally registered civil union"
+              3: "Living with my partner (cohabiting) - not legally recognised"
+              4: "Living with my partner (cohabiting) - legally recognised"
+              5: "Legally separated"
+              6: "Legally divorced or civil union dissolved"
+              7: "Option 7 (country-specific)"
+              8: "Option 8 (country-specific)"
+          codeBlock: |
+            if q_b8.outcome == 1 or q_b8.outcome == 2:
+                living_with_partner = 1
+            if q_b8.outcome == 3 or q_b8.outcome == 4:
+                cohabiting = 1
+
+        - id: q_b9
+          kind: Question
+          title: "Have you ever lived with a partner without being married to them?"
+          precondition:
+            - predicate: has_partner_in_household == 0 or (has_partner_in_household == 1 and q_b8.outcome in [1, 2, 5, 6, 7, 8])
+          input:
+            control: Switch
+            off: "No"
+            on: "Yes"
+
+        - id: q_b10
+          kind: Question
+          title: "Have you ever been divorced or had a civil union dissolved?"
+          input:
+            control: Switch
+            off: "No"
+            on: "Yes"
+
+        - id: q_b11
+          kind: Question
+          title: "This question is about your legal marital status. Which of the descriptions from the following list describes your legal marital status now?"
+          precondition:
+            - predicate: has_partner_in_household == 0 or cohabiting == 1
+          input:
+            control: Radio
+            labels:
+              1: "Legally married"
+              2: "In a legally registered civil union"
+              3: "Legally separated"
+              4: "Legally divorced or civil union dissolved"
+              5: "Widowed or civil partner died"
+              6: "None of these (NEVER married or in legally registered civil union)"
+              7: "Option 7 (country-specific)"
+              8: "Option 8 (country-specific)"
+
+        - id: q_b12
+          kind: Question
+          title: "Have you ever had any children of your own, step-children, adopted children, foster children or a partner's children living in your household?"
+          precondition:
+            - predicate: has_children_in_household == 0
+          input:
+            control: Switch
+            off: "No"
+            on: "Yes"
+
         - id: q_b13
           kind: Question
           title: "Which of the following phrases best describes the area where you live?"
@@ -1156,6 +1293,26 @@ questionnaire:
           codeBlock: |
             if q_b16.outcome % 2 == 1:
                 in_paid_work = 1
+            if q_b16.outcome >= 3:
+                b16_multiple = 1
+
+        - id: q_b17
+          kind: Question
+          title: "And which of these descriptions best describes your situation in the last 7 days? (Please select only one)"
+          precondition:
+            - predicate: b16_multiple == 1
+          input:
+            control: Dropdown
+            labels:
+              1: "In paid work (or away temporarily)"
+              2: "In education, not paid for by employer"
+              3: "Unemployed and actively looking for a job"
+              4: "Unemployed, wanting a job but not actively looking"
+              5: "Permanently sick or disabled"
+              6: "Retired"
+              7: "In community or military service"
+              8: "Doing housework, looking after children or other persons"
+              9: "Other"
 
         - id: q_b18
           kind: Question
@@ -1460,66 +1617,149 @@ questionnaire:
               3: "Finding it difficult on present income"
               4: "Finding it very difficult on present income"
 
-        - id: q_b8
+        # ── B44-B52: Partner's employment sub-section ──
+        # PDF: ASK IF LIVING WITH HUSBAND/WIFE/PARTNER AT B7 (IF 01 AT B7)
+
+        - id: q_b44a
           kind: Question
-          title: "Which one of the following descriptions best describes your relationship to your husband, wife, or partner?"
+          title: "What is the highest level of education your husband, wife, or partner completed? (Country-specific education level)"
           precondition:
-            - predicate: q_b1.outcome >= 1
+            - predicate: has_partner_in_household == 1
           input:
-            control: Radio
+            control: Dropdown
             labels:
-              1: "Legally married"
-              2: "In a legally registered civil union"
-              3: "Living with my partner (cohabiting) - not legally recognised"
-              4: "Living with my partner (cohabiting) - legally recognised"
-              5: "Legally separated"
-              6: "Legally divorced or civil union dissolved"
+              1: "Level 1 (lowest)"
+              2: "Level 2"
+              3: "Level 3"
+              4: "Level 4"
+              5: "Level 5"
+              6: "Level 6"
+              7: "Level 7"
+              8: "Level 8"
+              9: "Level 9"
+              10: "Level 10"
+              11: "Level 11"
+              12: "Level 12"
+              13: "Level 13"
+              14: "Level 14"
+              15: "Level 15"
+              16: "Level 16"
+              17: "Level 17"
+              18: "Level 18"
+              19: "Level 19"
+              20: "Level 20"
+              21: "Level 21"
+              22: "Level 22"
+              23: "Level 23"
+              24: "Level 24 (highest)"
+
+        - id: q_b45
+          kind: Question
+          title: "Which of the following descriptions applies to what your husband, wife, or partner has been doing for the last 7 days? (Select all that apply)"
+          precondition:
+            - predicate: has_partner_in_household == 1
+          input:
+            control: Checkbox
+            labels:
+              1: "In paid work (or away temporarily)"
+              2: "In education, not paid for by employer"
+              4: "Unemployed and actively looking for a job"
+              8: "Unemployed, wanting a job but not actively looking"
+              16: "Permanently sick or disabled"
+              32: "Retired"
+              64: "In community or military service"
+              128: "Doing housework, looking after children or other persons"
+              256: "Other"
           codeBlock: |
-            if q_b8.outcome == 1 or q_b8.outcome == 2:
-                living_with_partner = 1
-            if q_b8.outcome == 3 or q_b8.outcome == 4:
-                cohabiting = 1
+            if q_b45.outcome % 2 == 1:
+                partner_in_paid_work = 1
 
-        - id: q_b9
+        - id: q_b46
           kind: Question
-          title: "Have you ever lived with a partner without being married to them?"
+          title: "And which of these descriptions best describes your husband, wife, or partner's situation in the last 7 days? (Please select only one)"
           precondition:
-            - predicate: living_with_partner == 0 and cohabiting == 0
+            - predicate: has_partner_in_household == 1 and q_b45.outcome >= 3
+          input:
+            control: Dropdown
+            labels:
+              1: "In paid work (or away temporarily)"
+              2: "In education, not paid for by employer"
+              3: "Unemployed and actively looking for a job"
+              4: "Unemployed, wanting a job but not actively looking"
+              5: "Permanently sick or disabled"
+              6: "Retired"
+              7: "In community or military service"
+              8: "Doing housework, looking after children or other persons"
+              9: "Other"
+
+        - id: q_b47
+          kind: Question
+          title: "Just to check, did your husband, wife, or partner do any paid work of an hour or more in the last 7 days?"
+          precondition:
+            - predicate: has_partner_in_household == 1 and partner_in_paid_work == 0
           input:
             control: Switch
             off: "No"
             on: "Yes"
+          codeBlock: |
+            if q_b47.outcome == 1:
+                partner_had_paid_work = 1
 
-        - id: q_b10
+        - id: q_b48
           kind: Question
-          title: "Have you ever been divorced or had a civil union dissolved?"
-          input:
-            control: Switch
-            off: "No"
-            on: "Yes"
-
-        - id: q_b11
-          kind: Question
-          title: "This question is about your legal marital status. Which of the descriptions from the following list describes your legal marital status now?"
+          title: "What is your husband, wife, or partner's main job?"
           precondition:
-            - predicate: living_with_partner == 0 or cohabiting == 1
+            - predicate: has_partner_in_household == 1 and (partner_in_paid_work == 1 or partner_had_paid_work == 1)
+          input:
+            control: Textarea
+            placeholder: "Please describe their main job"
+            maxLength: 300
+
+        - id: q_b49
+          kind: Question
+          title: "What does your husband, wife, or partner mainly do in their job?"
+          precondition:
+            - predicate: has_partner_in_household == 1 and (partner_in_paid_work == 1 or partner_had_paid_work == 1)
+          input:
+            control: Textarea
+            placeholder: "Please describe their main duties"
+            maxLength: 300
+
+        - id: q_b50
+          kind: Question
+          title: "What training or qualifications are needed for your husband, wife, or partner's job?"
+          precondition:
+            - predicate: has_partner_in_household == 1 and (partner_in_paid_work == 1 or partner_had_paid_work == 1)
+          input:
+            control: Textarea
+            placeholder: "If no specific training or qualifications are needed, please write 'None'"
+            maxLength: 300
+
+        - id: q_b51
+          kind: Question
+          title: "In your husband, wife, or partner's main job are they..."
+          precondition:
+            - predicate: has_partner_in_household == 1 and (partner_in_paid_work == 1 or partner_had_paid_work == 1)
           input:
             control: Radio
             labels:
-              1: "Legally married"
-              2: "In a legally registered civil union"
-              3: "Legally separated"
-              4: "Legally divorced or civil union dissolved"
-              5: "Widowed or civil partner died"
-              6: "None of these (NEVER married or in legally registered civil union)"
+              1: "An employee"
+              2: "Self-employed"
+              3: "Working for your own family's business"
 
-        - id: q_b12
+        - id: q_b52
           kind: Question
-          title: "Have you ever had any children of your own, step-children, adopted children, foster children or a partner's children living in your household?"
+          title: "How many hours does your husband, wife, or partner normally work a week in their main job? (Including any paid or unpaid overtime, 0-168)"
+          precondition:
+            - predicate: has_partner_in_household == 1 and (partner_in_paid_work == 1 or partner_had_paid_work == 1)
           input:
-            control: Switch
-            off: "No"
-            on: "Yes"
+            control: Editbox
+            min: 0
+            max: 168
+            right: "hours per week"
+          postcondition:
+            - predicate: q_b52.outcome >= 0 and q_b52.outcome <= 168
+              hint: "Please enter a number between 0 and 168 hours."
 
         - id: q_b53a
           kind: Question

@@ -973,6 +973,78 @@ The rule: **a variable that is READ in preconditions should NOT be WRITTEN in co
 of items that are downstream of those preconditions.** If you need both read and write,
 use two variables — one for the "before" state and one for the "after" state.
 
+### Pitfall 9: Waterfall cascade with shared routing variable
+
+When the source has a "first YES wins" cascade — a sequence of checks where the first
+positive answer routes to a specific section and skips all subsequent checks — do NOT
+model it with a shared routing variable. This creates N×(N-1)/2 dependency cycles.
+
+```
+IMPERATIVE (e.g., emergency dispatch ABCDE assessment):
+Check A: "Breathing difficulty?" → If YES, go to Breathing page
+Check B: "Behavior change?" → If YES, go to Neuro page
+Check C: "Seizures?" → If YES, go to Seizure page
+Check D: "Pain?" → If YES, go to Pain page
+```
+
+```yaml
+# WRONG: shared routing variable creates cycles
+codeInit: |
+  routed = 0
+
+- id: q_breathing_diff
+  precondition:
+    - predicate: routed == 0    # reads routed
+  codeBlock: |
+    if q_breathing_diff.outcome == 1:
+        routed = 1               # writes routed → CYCLE with all other items
+
+- id: q_behavior
+  precondition:
+    - predicate: routed == 0    # reads routed → depends on q_breathing_diff
+  codeBlock: |
+    if q_behavior.outcome == 1:
+        routed = 1               # writes routed → q_breathing_diff depends on this
+# → q_breathing_diff ↔ q_behavior CYCLE
+```
+
+```yaml
+# CORRECT: direct outcome references (cycle-free)
+- id: q_breathing_diff
+  kind: Question
+  title: "Breathing difficulty?"
+  input:
+    control: Switch
+    off: "No"
+    on: "Yes"
+
+- id: q_behavior
+  precondition:
+    - predicate: q_breathing_diff.outcome == 0    # references earlier item directly
+  ...
+
+- id: q_seizures
+  precondition:
+    - predicate: q_breathing_diff.outcome == 0
+    - predicate: q_behavior.outcome == 0          # references all earlier items
+  ...
+
+- id: q_pain
+  precondition:
+    - predicate: q_breathing_diff.outcome == 0
+    - predicate: q_behavior.outcome == 0
+    - predicate: q_seizures.outcome == 0
+  ...
+```
+
+The correct approach creates a DAG (directed acyclic graph) because each item only
+references EARLIER items' outcomes. The preconditions grow longer for items later in
+the cascade, but this faithfully models the "first YES wins" logic without cycles.
+
+This pattern was discovered during conversion of a 66-page Hungarian emergency dispatch
+protocol (ICS Kérdezési Protokoll) where the ABCDE assessment cascade of 11 items
+produced 44 cycles when modeled with a shared `abcde_routed` variable.
+
 ## Real-World Examples
 
 These examples come from converting 10 Statistics Canada CATI questionnaires to QML.
@@ -1074,6 +1146,7 @@ proper min/max for dollar amounts).
 | Missing filter/severity gates | 6/10 | Pattern 7 |
 | DK/Refused options omitted | 8/10 | Pitfall 2 |
 | PATH variable feedback loops | 2/10 | Variable Feedback Loops, Pitfall 8 |
+| Waterfall cascade with shared variable | 1/11 | Pitfall 9 |
 | Age boundary off-by-one | 4/10 | Pitfall 5 |
 | Missing "Other (specify)" follow-ups | 7/10 | Pitfall 7 |
 | Proxy exclusion gates missing | 3/10 | Pitfall 6 |
