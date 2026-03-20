@@ -136,13 +136,19 @@ This architecture enables **pause/resume** of interviews: by storing the context
 3. Restore previous item's context
 4. Return to previous item
 
-**Item Processing**:
+**Item Processing** (strict order — postcondition BEFORE codeBlock):
 1. Clone current item's context
 2. Populate context with ItemProxy instances for all items
-3. Validate postcondition - return hint message if failed
-4. Execute codeBlock via PythonRunner
-5. Update outcomes for modified items
-6. Propagate variables to subsequent items' contexts
+3. Assign outcome from user response
+4. Validate postcondition — return hint message if failed
+5. Execute codeBlock via PythonRunner (only after postcondition passes)
+6. Update outcomes for modified items
+7. Propagate variables to subsequent items' contexts
+
+**Dependency consequences of this order**:
+- Preconditions can reference other items' outcomes and variables from prior items
+- Postconditions can reference the current item's outcome and any variable — but variables still hold their prior values (the current item's codeBlock hasn't run yet)
+- CodeBlocks can read/write the current item's and previous items' outcomes and update variables for subsequent items
 
 ### Performance Characteristics
 

@@ -366,14 +366,18 @@ class TestCycleDetection(unittest.TestCase):
         self.assertTrue(topology.has_cycles)
         self.assertGreater(len(topology.cycles), 0)
 
-    def test_topological_order_none_with_cycles(self):
-        """Test that topological order is None when cycles exist."""
+    def test_topological_order_complete_with_cycles(self):
+        """Topological order includes all items even when cycles exist."""
         state = load_qml_fixture("cycles.qml")
         builder = StaticBuilder(state)
         topology = QMLTopology(state, builder)
 
         order = topology.get_topological_order()
-        self.assertIsNone(order)
+        self.assertIsNotNone(order)
+        self.assertTrue(topology.has_cycles)
+        # All items appear in the order
+        all_item_ids = {item['id'] for item in state.get_all_items() if item.get('id')}
+        self.assertEqual(set(order), all_item_ids)
 
 
 @pytest.mark.integration

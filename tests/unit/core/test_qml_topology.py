@@ -3,9 +3,10 @@
 
 This test suite verifies the QMLTopology class which handles:
 1. Building dependency graphs from questionnaire items
-2. Detecting cycles using dual approach (Z3 + Kahn's algorithm)
+2. Detecting cycles via Kahn's algorithm and DFS path discovery
 3. Computing topological order for navigation
-4. Analyzing dependency layers and connected components
+4. Identifying all cycle-affected items (cycle members + collateral)
+5. Analyzing dependency layers and connected components
 
 ## Coverage Areas:
 
@@ -22,6 +23,11 @@ This test suite verifies the QMLTopology class which handles:
 - Multiple cycles
 - Self-referencing item
 
+### Cycle-Tolerant Topology (3 tests)
+- Complete order produced even with cycles
+- Downstream items ordered after cycle members
+- get_topological_order() never returns None
+
 ### Topological Ordering (4 tests)
 - Correct order for linear dependencies
 - Order preserves QML file order for independent items
@@ -33,7 +39,9 @@ This test suite verifies the QMLTopology class which handles:
 - Dependency layers grouping
 - Reachability analysis
 
-Total: 16 tests covering QMLTopology functionality.
+These unit tests verify the core graph algorithms that determine questionnaire
+navigation order and detect circular dependencies that would prevent valid
+interview completion.
 """
 
 import unittest
@@ -136,7 +144,7 @@ class TestQMLTopologyDependencyGraph(unittest.TestCase):
 @pytest.mark.topology
 @pytest.mark.cycle_detection
 class TestQMLTopologyCycleDetection(unittest.TestCase):
-    """Tests for cycle detection (Z3 + Kahn's algorithm verification)."""
+    """Tests for cycle detection (Kahn's algorithm + DFS path discovery)."""
 
     def test_no_cycles_linear(self):
         """Test no cycles in linear dependencies."""
@@ -211,6 +219,67 @@ class TestQMLTopologyCycleDetection(unittest.TestCase):
 
 @pytest.mark.unit
 @pytest.mark.topology
+@pytest.mark.cycle_detection
+class TestCycleTolerantTopology(unittest.TestCase):
+    """Tests for cycle-tolerant Kahn's: always produces a complete topological order."""
+
+    def test_complete_order_with_cycle(self):
+        """All items appear in topological_order even when cycles exist.
+
+        Cycle: q1 → q2 → q3 → q1. q4 depends on q2. q5 independent.
+        All 5 items should be in the order.
+        """
+        state = create_questionnaire([
+            {'id': 'q1', 'precondition': [{'predicate': 'q3.outcome == 1'}]},
+            {'id': 'q2', 'precondition': [{'predicate': 'q1.outcome == 1'}]},
+            {'id': 'q3', 'precondition': [{'predicate': 'q2.outcome == 1'}]},
+            {'id': 'q4', 'precondition': [{'predicate': 'q2.outcome == 1'}]},
+            {'id': 'q5'},
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        self.assertTrue(topology.has_cycles)
+        # All items appear in order
+        self.assertEqual(set(topology.topological_order), {'q1', 'q2', 'q3', 'q4', 'q5'})
+        # q5 (independent) comes before cycle members that depend on others
+        self.assertLess(
+            topology.topological_order.index('q5'),
+            topology.topological_order.index('q4'),
+        )
+
+    def test_downstream_items_ordered_after_cycle(self):
+        """Items depending on cycle members are properly ordered after them."""
+        state = create_questionnaire([
+            {'id': 'q1', 'precondition': [{'predicate': 'q2.outcome == 1'}]},
+            {'id': 'q2', 'precondition': [{'predicate': 'q1.outcome == 1'}]},
+            {'id': 'q3', 'precondition': [{'predicate': 'q2.outcome == 1'}]},
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        self.assertTrue(topology.has_cycles)
+        order = topology.topological_order
+        self.assertEqual(len(order), 3)
+        # q3 depends on q2 (cycle member) → q3 comes after q2
+        self.assertGreater(order.index('q3'), order.index('q2'))
+
+    def test_get_topological_order_never_none(self):
+        """get_topological_order() always returns a list, never None."""
+        state = create_questionnaire([
+            {'id': 'q1', 'precondition': [{'predicate': 'q2.outcome == 1'}]},
+            {'id': 'q2', 'precondition': [{'predicate': 'q1.outcome == 1'}]},
+        ])
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertIsNotNone(order)
+        self.assertEqual(set(order), {'q1', 'q2'})
+
+
+@pytest.mark.unit
+@pytest.mark.topology
 class TestQMLTopologyTopologicalOrder(unittest.TestCase):
     """Tests for topological ordering."""
 
@@ -268,8 +337,8 @@ class TestQMLTopologyTopologicalOrder(unittest.TestCase):
         self.assertLess(order.index('q2'), order.index('q4'))
         self.assertLess(order.index('q3'), order.index('q4'))
 
-    def test_returns_none_with_cycles(self):
-        """Test that topological order returns None when cycles exist."""
+    def test_returns_order_even_with_cycles(self):
+        """Topological order is always available, even when cycles exist."""
         state = create_questionnaire([
             {'id': 'q1', 'precondition': [{'predicate': 'q2.outcome == 1'}]},
             {'id': 'q2', 'precondition': [{'predicate': 'q1.outcome == 1'}]}
@@ -278,7 +347,9 @@ class TestQMLTopologyTopologicalOrder(unittest.TestCase):
         topology = QMLTopology(state, builder)
 
         order = topology.get_topological_order()
-        self.assertIsNone(order)
+        self.assertIsNotNone(order)
+        self.assertEqual(set(order), {'q1', 'q2'})
+        self.assertTrue(topology.has_cycles)
 
 
 @pytest.mark.unit
