@@ -1,0 +1,328 @@
+\chapter{Practical Examples of Complex Type Questionnaires}
+\label{ch:appendix-examples}
+
+This appendix provides complete QML examples demonstrating the complex type concepts discussed in Section~\ref{sec:complex-types} and Section~\ref{sec:z3-complex-types}. These examples illustrate vector and matrix item types with their associated constraints in realistic survey scenarios.
+
+\section{Employee Satisfaction Survey}
+
+Consider a survey measuring employee satisfaction across multiple dimensions:
+
+\begin{lstlisting}[language=qml, caption={Multi-dimensional satisfaction survey}, numbers=none]
+qmlVersion: "1.0"
+questionnaire:
+  title: "Employee Satisfaction Survey"
+  codeInit: |
+    # Track problematic areas
+    problem_areas = []
+
+  blocks:
+    - id: satisfaction_assessment
+      items:
+        # Item I_1: Rate 5 aspects of job satisfaction
+        # Type: Vector[5], Domain: Each element in [1,10]
+        - id: job_aspects
+          kind: QuestionGroup
+          title: "Rate your satisfaction with each aspect"
+          questions:
+            - "Work-life balance"
+            - "Compensation and benefits"
+            - "Career development"
+            - "Management support"
+            - "Work environment"
+          input:
+            control: Slider
+            min: 1
+            max: 10
+          codeBlock: |
+            # Identify problem areas (rated below 5)
+            aspect_names = ["Work-life", "Compensation", "Career", "Management", "Environment"]
+            problem_areas = [aspect_names[i] for i in range(5)
+                           if job_aspects.outcome[i] < 5]
+
+        # Item I_2: Detailed questions if any aspect rated below 5
+        - id: followup_needed
+          kind: Comment
+          title: "Additional feedback needed"
+          precondition:
+            - predicate: any([job_aspects.outcome[j] < 5 for j in range(5)])
+          codeBlock: |
+            count = len(problem_areas)
+            message = f"We identified {count} areas needing improvement:\n"
+            for area in problem_areas:
+              message += f"- {area}\n"
+            print(message)
+
+        # Item I_3: Rank problematic areas by urgency
+        - id: problem_ranking
+          kind: QuestionGroup
+          title: "Rank these problematic areas by urgency"
+          precondition:
+            # Same condition as I_2
+            - predicate: any([job_aspects.outcome[j] < 5 for j in range(5)])
+          questions:
+            - "First priority"
+            - "Second priority"
+            - "Third priority"
+          input:
+            control: Dropdown
+            labels:
+              1: "Work-life balance"
+              2: "Compensation and benefits"
+              3: "Career development"
+              4: "Management support"
+              5: "Work environment"
+          postcondition:
+            # Only allow ranking of actual problem areas
+            - predicate: all([problem_ranking.outcome[i] in [j+1 for j in range(5) if job_aspects.outcome[j] < 5] for i in range(len(problem_ranking.outcome)) if problem_ranking.outcome[i] > 0])
+              hint: "Please only rank areas you rated below 5"
+
+        # Item I_4: Allocate 100 points for improvement priority
+        - id: improvement_allocation
+          kind: QuestionGroup
+          title: "Allocate 100 points across areas for improvement"
+          precondition:
+            - predicate: any([job_aspects.outcome[j] < 5 for j in range(5)])
+          questions:
+            - "Points for Work-life balance"
+            - "Points for Compensation"
+            - "Points for Career development"
+            - "Points for Management"
+            - "Points for Work environment"
+          input:
+            control: Editbox
+            min: 0
+            max: 100
+          postcondition:
+            - predicate: sum(improvement_allocation.outcome) == 100
+              hint: "Points must sum to exactly 100"
+            - predicate: all([improvement_allocation.outcome[j] >= 0 for j in range(5)])
+              hint: "All values must be non-negative"
+\end{lstlisting}
+
+This example demonstrates:
+\begin{itemize}
+    \item Vector items for multi-dimensional ratings using QuestionGroup
+    \item Conditional logic based on vector components in preconditions
+    \item Allocation constraint with sum requirement in postconditions
+    \item Dynamic content generation using codeBlock
+\end{itemize}
+
+\section{Product Comparison Matrix}
+
+A market research questionnaire comparing products:
+
+\begin{lstlisting}[language=qml, caption={Product comparison matrix}, numbers=none]
+qmlVersion: "1.0"
+questionnaire:
+  title: "Product Comparison Study"
+  codeInit: |
+    # Track best products per attribute
+    best_per_attribute = []
+
+  blocks:
+    - id: comparison
+      items:
+        # Item I_1: Compare 4 products on 6 attributes
+        # Type: Matrix[4][6], Domain: Each element in [0,100]
+        - id: product_comparison
+          kind: MatrixQuestion
+          title: "Rate each product on these attributes (0-100)"
+          rows:
+            - "SmartPhone X"
+            - "SmartPhone Y"
+            - "SmartPhone Z"
+            - "SmartPhone W"
+          columns:
+            - "Battery life"
+            - "Screen quality"
+            - "Camera"
+            - "Performance"
+            - "Build quality"
+            - "Value for money"
+          input:
+            control: Editbox
+            min: 0
+            max: 100
+          codeBlock: |
+            # Calculate best product per attribute
+            best_per_attribute = []
+            for col in range(6):
+              scores = [product_comparison.outcome[row][col] for row in range(4)]
+              best_idx = scores.index(max(scores))
+              best_per_attribute.append(best_idx)
+
+        # Item I_2: Follow-up if any product scores perfect
+        - id: perfect_product
+          kind: Question
+          title: "You rated a product perfectly! Tell us why."
+          precondition:
+            # Check if any product has 100 on all attributes
+            - predicate: |
+                any([all([product_comparison.outcome[j][k] == 100
+                     for k in range(6)]) for j in range(4)])
+          input:
+            control: Radio
+            labels:
+              1: "It meets all my needs"
+              2: "Best in its category"
+              3: "Exceptional value"
+              4: "Other reason"
+
+        # Item I_3: Display best products per attribute
+        - id: best_summary
+          kind: Comment
+          title: "Analysis complete"
+          codeBlock: |
+            # Create summary of best products
+            products = ["SmartPhone X", "SmartPhone Y", "SmartPhone Z", "SmartPhone W"]
+            attributes = ["Battery", "Screen", "Camera", "Performance", "Build", "Value"]
+            summary = "Best products by attribute:\n"
+            for i in range(6):
+              best_prod = products[best_per_attribute[i]]
+              score = product_comparison.outcome[best_per_attribute[i]][i]
+              summary += f"- {attributes[i]}: {best_prod} (score: {score})\n"
+            print(summary)
+\end{lstlisting}
+
+This demonstrates:
+\begin{itemize}
+    \item Matrix items for two-dimensional data using MatrixQuestion
+    \item Complex preconditions involving matrix aggregations (checking for perfect scores)
+    \item Derived calculations from matrix data using codeBlock
+    \item Dynamic analysis and reporting of results
+\end{itemize}
+
+\clearpage
+\section{Market Research Survey with Complex Dependencies}
+
+This example demonstrates a questionnaire combining both vector and matrix types with inter-item dependencies:
+
+\begin{lstlisting}[language=qml, caption={Questionnaire with complex type dependencies}, numbers=none]
+qmlVersion: "1.0"
+questionnaire:
+  title: "Market Research Survey"
+  codeInit: |
+    # Initialize variables for tracking
+    weakest_idx = -1
+
+  blocks:
+    - id: product_evaluation
+      items:
+        # Item I_1: Rate 4 products on 3 attributes
+        # Type: Matrix[4][3] - 4 products x 3 attributes
+        # Domain: Each element in [1,5]
+        - id: product_ratings
+          kind: MatrixQuestion
+          title: "Rate each product on these attributes"
+          rows:
+            - "Product A"
+            - "Product B"
+            - "Product C"
+            - "Product D"
+          columns:
+            - "Price"
+            - "Quality"
+            - "Service"
+          input:
+            control: Radio
+            labels:
+              1: "Poor"
+              2: "Below Average"
+              3: "Average"
+              4: "Good"
+              5: "Excellent"
+
+        # Item I_2: Which product has best overall score?
+        # Type: Scalar, Domain: [1,4] (product selection)
+        - id: best_product
+          kind: Question
+          title: "Which product has the best overall score?"
+          precondition:
+            # At least one product must score 6+ total
+            - predicate: |
+                any([sum([product_ratings.outcome[i][j]
+                      for j in range(3)]) >= 6
+                      for i in range(4)])
+          input:
+            control: Radio
+            labels:
+              1: "Product A"
+              2: "Product B"
+              3: "Product C"
+              4: "Product D"
+
+        # Item I_3: Rank attributes by importance
+        # Type: Vector[3] - permutation ranking
+        - id: attribute_ranking
+          kind: QuestionGroup
+          title: "Rank these attributes by importance"
+          precondition:
+            # Only if chose Product A or B
+            - predicate: best_product.outcome == 1 or best_product.outcome == 2
+          questions:
+            - "Price"
+            - "Quality"
+            - "Service"
+          input:
+            control: Dropdown
+            labels:
+              1: "Most important"
+              2: "Second most important"
+              3: "Least important"
+          postcondition:
+            # Ensure valid ranking (all different)
+            - predicate: len(set(attribute_ranking.outcome)) == 3
+              hint: "Each attribute must have a unique rank"
+
+        # Item I_4: Rate chosen product's weakest attribute
+        # Type: Scalar, Domain: [1,10]
+        - id: weakest_rating
+          kind: Question
+          title: "Rate improvement priority for the weakest attribute"
+          precondition:
+            # Find and check if weakest attribute exists
+            - predicate: |
+                min([product_ratings.outcome[best_product.outcome-1][j]
+                     for j in range(3)]) < 4
+          codeBlock: |
+            # Identify and display the weakest attribute
+            prod_idx = best_product.outcome - 1
+            scores = [product_ratings.outcome[prod_idx][j] for j in range(3)]
+            weakest_idx = scores.index(min(scores))
+            attr_names = ["Price", "Quality", "Service"]
+            print(f"The weakest attribute is: {attr_names[weakest_idx]} (score: {scores[weakest_idx]})")
+          input:
+            control: Slider
+            min: 1
+            max: 10
+
+        # Item I_5: Calculate weighted satisfaction scores
+        # Type: Vector[3] - weighted scores per attribute
+        - id: weighted_scores
+          kind: Comment
+          title: "Weighted satisfaction analysis completed"
+          codeBlock: |
+            # Calculate weighted scores based on importance ranking
+            prod_idx = best_product.outcome - 1
+            weighted = []
+            for j in range(3):
+              # Higher weight for more important attributes
+              weight = 4 - attribute_ranking.outcome[j]
+              score = product_ratings.outcome[prod_idx][j] * weight
+              weighted.append(score)
+            # Display results using built-in print function
+            attr_names = ["Price", "Quality", "Service"]
+            result = "Weighted scores:\n"
+            for j in range(3):
+              result += f"- {attr_names[j]}: {weighted[j]}\n"
+            print(result)
+\end{lstlisting}
+
+This example demonstrates:
+\begin{itemize}
+    \item Combining matrix ratings with scalar selection and vector ranking
+    \item Preconditions that reference matrix elements using dynamic indices (e.g., \texttt{product\_ratings.outcome[best\_product.outcome-1][j]})
+    \item Postconditions enforcing permutation constraints on rankings
+    \item Code blocks performing weighted calculations across complex types
+    \item Multi-level dependencies: $I_2$ depends on $I_1$, $I_3$ depends on $I_2$, $I_4$ depends on both $I_1$ and $I_2$, and $I_5$ depends on $I_1$, $I_2$, and $I_3$
+\end{itemize}

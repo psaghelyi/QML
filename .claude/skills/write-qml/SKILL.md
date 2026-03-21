@@ -380,22 +380,36 @@ Before outputting the QML, verify every point:
 
 ### Local Validation Script
 
-After writing a QML file, validate it using the bundled script:
+After writing a QML file, validate it using the bundled script. It runs all four formal
+verification steps from the thesis validation hierarchy:
 
 ```bash
-cd /Users/psaghelyi/Project/github/psaghelyi/QML/askalot_qml && \
-uv run python /Users/psaghelyi/Project/github/psaghelyi/QML/.claude/skills/write-qml/scripts/validate_qml.py <path-to-qml-file> [--level 1|2|3] [--json]
+cd /root/QML && \
+uv run python .claude/skills/write-qml/scripts/validate_qml.py <path-to-qml-file> [--json]
 ```
 
-Validation levels:
-- **Level 1**: Per-item Z3 classification (fast — detects NEVER reachable items, INFEASIBLE postconditions)
-- **Level 2**: Level 1 + global satisfiability check (default — verifies at least one valid completion exists)
-- **Level 3**: Level 2 + path-based reachability (thorough — detects dead code from accumulated constraints)
+The four verification steps (always run in order):
+
+1. **Per-item classification** — Witness formula W_i = B ∧ P_i ∧ ¬Q_i
+   Classifies each item's precondition reachability (ALWAYS/CONDITIONAL/NEVER) and
+   postcondition invariant (TAUTOLOGICAL/CONSTRAINING/INFEASIBLE/NONE).
+   Detects NEVER reachable items and INFEASIBLE postconditions.
+
+2. **Global satisfiability** — F = B ∧ ∧(P_i ⇒ Q_i)
+   Checks whether at least one valid questionnaire completion exists.
+   UNSAT means accumulated postconditions conflict — no execution path is valid.
+
+3. **Dependency loops** — QMLTopology with stable Kahn's algorithm
+   Builds the dependency graph and detects cycles via Z3 ordering constraints
+   and Kahn's algorithm. Cycles indicate variable feedback loops.
+
+4. **Path-based reachability** — A_i = B ∧ ∧{j∈Pred(i)}(P_j ⇒ Q_j)
+   For each CONDITIONAL item, checks accumulated reachability under predecessor
+   postconditions. Detects dead code that per-item and global checks miss.
 
 Use `--json` for machine-readable output. Exit code 0 = valid, 1 = issues found, 2 = error.
 
-Always run at least level 2 validation after writing a QML file. Offer level 3 for complex
-questionnaires with many preconditions.
+Always run validation after writing a QML file.
 
 ### Platform Validation via MCP
 

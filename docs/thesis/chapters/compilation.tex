@@ -1,0 +1,625 @@
+\chapter{Questionnaire Compilation}
+\label{ch:compilation}
+
+Electronic questionnaires combine two distinct paradigms: \textbf{declarative specifications} that define logical relationships between questions, and \textbf{imperative code blocks} that perform computations and state transformations. This hybrid structure allows questionnaire designers to express both mathematical constraints and procedural logic naturally, but it presents a fundamental challenge for formal verification.
+
+A questionnaire consists of both declarative and imperative units that work together to define the survey logic:
+
+\paragraph{Declarative Units (Python Expressions):}
+These components specify the logical structure without describing how to compute results:
+\begin{itemize}
+    \item \textbf{Domain constraints}: Define valid ranges for answer variables (e.g., \texttt{1 <= age <= 120})
+    \item \textbf{Preconditions}: Boolean expressions determining when questions appear (e.g., \texttt{income > 50000 and employed == True})
+    \item \textbf{Postconditions}: Validation rules that answers must satisfy (e.g., \texttt{total\_expenses <= income})
+\end{itemize}
+
+\paragraph{Imperative Units (Python Statements):}
+These components perform computations and modify state through sequential execution:
+\begin{itemize}
+    \item \textbf{Global initialization code}: Executed once at questionnaire start to set up shared variables and initial state
+    \item \textbf{Item-level code blocks}: Executed after an item is answered and its postcondition is satisfied, typically to compute derived values or update running totals
+\end{itemize}
+
+For example, a financial survey might use declarative preconditions to control question flow based on income level, while using imperative code blocks to calculate tax brackets, accumulate expenses, or determine eligibility scores through complex multi-step algorithms.
+
+\paragraph{The Translation Challenge}
+
+To enable static analysis of questionnaire logic through SMT solving, we must translate both paradigms into a unified constraint representation. While declarative expressions map naturally to Z3 formulas, imperative code blocks require sophisticated compilation techniques:
+
+\begin{itemize}
+    \item \textbf{Variable mutation}: Python allows reassignment (e.g., \texttt{total = total + expense}), but Z3 variables are immutable
+    \item \textbf{Control flow}: If-statements create divergent execution paths that must be unified into single constraint expressions
+    \item \textbf{Iteration}: Loops with bounded iterations must be unrolled into finite constraint sequences
+    \item \textbf{Side effects}: Code blocks can modify multiple variables, requiring careful tracking of data dependencies
+\end{itemize}
+
+This chapter presents our compilation approach that transforms Python code—both expressions and statements—into equivalent Z3 constraints. The translation preserves the semantic behavior while enabling formal verification of questionnaire properties.
+
+\paragraph{Compilation Techniques Overview}
+
+Our Python-to-Z3 compiler employs three key techniques that handle the fundamental control flow constructs of imperative programming:
+
+\begin{enumerate}
+    \item \textbf{Single Static Assignment (SSA)}: Transforms variable mutations into versioned variables, where each assignment creates a new immutable variable
+    \item \textbf{Conditional Branching Transformation}: Converts if-statements into phi-functions that select values based on conditions
+    \item \textbf{Loop Unrolling}: Expands bounded loops into sequential constraints for finite iteration counts
+\end{enumerate}
+
+The compilation process operates on Python Abstract Syntax Trees (AST), systematically transforming each node into equivalent Z3 constraints while maintaining semantic correctness for questionnaire validation purposes.
+
+\paragraph{Pragmatic Design Philosophy}
+
+The Z3 compiler follows a \textbf{pragmatic approach} that prioritizes questionnaire validation over perfect Python code validation:
+
+\begin{itemize}
+    \item \textbf{Questionnaire-First Validation}: The primary goal is to ensure questionnaire flow logic is sound and all paths are reachable
+    \item \textbf{Best-Effort Python Translation}: Python code blocks are translated to Z3 constraints using a ``best-effort'' approach
+    \item \textbf{Graceful Degradation}: When Python constructs cannot be perfectly represented in Z3, the compiler continues with partial constraints rather than failing
+    \item \textbf{Practical Static Analysis}: Focus on detecting unreachable questionnaire items and logical inconsistencies rather than comprehensive Python validation
+    \item \textbf{Domain-Specific Optimization}: Optimized for survey logic patterns (conditionals, loops, arithmetic) rather than general Python semantics
+\end{itemize}
+
+This pragmatic approach ensures that questionnaire authors can validate their survey logic effectively while maintaining development velocity, even when dealing with complex Python expressions that may not have perfect Z3 equivalents.
+
+\paragraph{Selective Compilation of Code Blocks}
+
+During compilation to Z3 constraints, only the portions of code blocks that ultimately influence a precondition or postcondition are considered. Variables and computations that are never referenced in any condition are ignored, ensuring that the formal analysis focuses solely on logic that affects questionnaire flow and validation. This selective approach reduces constraint complexity and allows questionnaire authors to include auxiliary computations (e.g., logging, debugging variables) without impacting validation performance.
+
+\section{Single Static Assignment (SSA)}
+
+Single Static Assignment is a fundamental technique in compiler design~\cite{cytron1991efficiently, appel2002modern} where each variable is assigned exactly once. When a variable is reassigned in the original program, we create a new versioned variable in the SSA form.
+
+\paragraph{Motivation}
+
+Consider the following Python code block within a questionnaire:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Python code with variable reassignment}]
+total = 0
+total = total + item1
+total = total + item2
+result = total * tax_rate
+\end{lstlisting}
+
+In standard Python semantics, the variable \texttt{total} is mutated multiple times. However, Z3 variables are immutable once declared. SSA transformation resolves this by creating versioned variables.
+
+\paragraph{SSA Transformation}
+
+The SSA transformation creates a new variable for each assignment:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={SSA representation}]
+total_0 = 0
+total_1 = total_0 + item1
+total_2 = total_1 + item2
+result_0 = total_2 * tax_rate
+\end{lstlisting}
+
+Each assignment creates a new version of the variable, making the data flow explicit. This transforms mutable variables into immutable SSA variables that Z3 can directly represent.
+
+In Z3, this SSA form translates directly to constraint variables:
+
+\begin{align*}
+& \text{total}_0 = \texttt{IntVal}(0) \\
+& \text{total}_1 = \text{total}_0 + \texttt{Int}(\text{'item1'}) \\
+& \text{total}_2 = \text{total}_1 + \texttt{Int}(\text{'item2'}) \\
+& \text{result}_0 = \text{total}_2 * \texttt{Int}(\text{'tax\_rate'})
+\end{align*}
+
+Each variable becomes an immutable Z3 expression, eliminating the need for mutation and aligning perfectly with Z3's functional constraint model.
+
+\section{Conditional Branching Transformation}
+
+Conditional statements in Python must be transformed into Z3's functional representation using \texttt{If} expressions and constraint implications. When control flow paths merge after conditional statements, we need a mechanism to select which version of a variable should be used. This is accomplished through \textbf{phi functions} (written as $\phi$), a fundamental concept in SSA form that is used specifically at control flow merge points.
+
+\paragraph{Phi Functions: Merging Control Flow Paths}
+
+A phi function $\phi$ is a special operation that selects between different versions of a variable based on which control flow path was taken. The general form is:
+
+\[
+x_{\text{new}} = \phi(\text{condition}, x_{\text{true\_branch}}, x_{\text{false\_branch}})
+\]
+
+This reads as: ``If the condition is true, use the value from the true branch; otherwise, use the value from the false branch.''
+
+\paragraph{Converting If-Statements to Phi Functions}
+
+The general process for converting an if-statement to SSA form with phi functions follows these steps:
+
+\begin{enumerate}
+    \item \textbf{Version each assignment}: Create a new variable version for every assignment
+    \item \textbf{Track branches}: Identify which variables are assigned in each branch
+    \item \textbf{Insert phi functions}: At the merge point after the if-statement, insert phi functions for any variable that was assigned in either branch
+    \item \textbf{Select the appropriate version}: The phi function chooses between the branch-specific version and the pre-branch version
+\end{enumerate}
+
+Consider a general if-statement pattern:
+\begin{lstlisting}[language=Python, numbers=none]
+x = initial_value
+if condition:
+    x = new_value
+# merge point - which version of x?
+use(x)
+\end{lstlisting}
+
+This transforms to:
+\begin{lstlisting}[numbers=none]
+x_0 = initial_value
+if condition:
+    x_1 = new_value
+x_2 = phi(condition, x_1, x_0)
+use(x_2)
+\end{lstlisting}
+
+The phi function captures the fact that at the merge point, we need either $x_1$ (if the condition was true) or $x_0$ (if the condition was false).
+
+In Z3, phi functions are directly represented using the \texttt{If} expression:
+
+\begin{align*}
+& x_2 = \texttt{If}(\text{condition}, x_1, x_0)
+\end{align*}
+
+\paragraph{Branch Compilation Strategy}
+
+For each if-statement, we:
+\begin{enumerate}
+    \item Compile the condition to a Z3 boolean expression
+    \item Create separate compilation contexts for then/else branches
+    \item Merge the environments using phi-functions
+    \item Add constraints from both branches
+\end{enumerate}
+
+\paragraph{Example: Simple Conditional}
+
+Consider this Python code:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Python conditional statement}]
+if age >= 18:
+    discount = 0
+else:
+    discount = 10
+result = discount * 2
+\end{lstlisting}
+
+The Z3 transformation creates:
+
+\begin{align*}
+\text{Condition:} \quad & \text{cond} = (\text{age} \geq \texttt{IntVal}(18)) \\
+\text{Then branch:} \quad & \text{discount}_1 = \texttt{IntVal}(0) \\
+\text{Else branch:} \quad & \text{discount}_2 = \texttt{IntVal}(10) \\
+\text{Merge:} \quad & \text{discount}_3 = \texttt{If}(\text{cond}, \text{discount}_1, \text{discount}_2) \\
+\text{Continue:} \quad & \text{result}_0 = \text{discount}_3 * \texttt{IntVal}(2)
+\end{align*}
+
+\paragraph{Nested Conditionals}
+
+For nested conditionals, the process recurses:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Nested conditional example}]
+if x > 0:
+    if x > 10:
+        y = x * 2
+    else:
+        y = x + 5
+else:
+    y = 0
+\end{lstlisting}
+
+This generates a nested \texttt{If} structure in Z3:
+
+\begin{align*}
+& \text{cond}_1 = (x > \texttt{IntVal}(0)) \\
+& \text{cond}_2 = (x > \texttt{IntVal}(10)) \\
+& y_1 = x * \texttt{IntVal}(2) \\
+& y_2 = x + \texttt{IntVal}(5) \\
+& y_3 = \texttt{If}(\text{cond}_2, y_1, y_2) \\
+& y_4 = \texttt{IntVal}(0) \\
+& y_5 = \texttt{If}(\text{cond}_1, y_3, y_4)
+\end{align*}
+
+\section{Loop Unrolling}
+
+Since Z3 cannot directly represent arbitrary loops, we employ \textbf{bounded loop unrolling}~\cite{clarke2001bounded, kroening2014cbmc} for \texttt{for} loops with statically determinable bounds.
+
+\paragraph{Supported Loop Types}
+
+The compiler supports two types of bounded loops:
+
+\begin{enumerate}
+    \item \textbf{Range loops}: \texttt{for i in range(n)} where \texttt{n} is a compile-time constant
+    \item \textbf{Container literals}: \texttt{for item in [1, 2, 3]} with explicit element lists
+\end{enumerate}
+
+\paragraph{Range Loop Unrolling}
+
+Consider this questionnaire code block:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Python for loop with range}]
+total = 0
+for i in range(5):
+    total = total + i
+    if i == 3:
+        bonus = 10
+    else:
+        bonus = 0
+    total = total + bonus
+\end{lstlisting}
+
+The unrolling process creates:
+
+\begin{align*}
+& \text{total}_0 = \texttt{IntVal}(0) \\
+& \text{Iteration 0:} \\
+& \quad i = \texttt{IntVal}(0), \quad \text{total}_1 = \text{total}_0 + \texttt{IntVal}(0) \\
+& \quad \text{bonus}_0 = \texttt{If}(\texttt{IntVal}(0) = \texttt{IntVal}(3), \texttt{IntVal}(10), \texttt{IntVal}(0)) \\
+& \quad \text{total}_2 = \text{total}_1 + \text{bonus}_0 \\
+& \text{Iteration 1:} \\
+& \quad i = \texttt{IntVal}(1), \quad \text{total}_3 = \text{total}_2 + \texttt{IntVal}(1) \\
+& \quad \text{bonus}_1 = \texttt{If}(\texttt{IntVal}(1) = \texttt{IntVal}(3), \texttt{IntVal}(10), \texttt{IntVal}(0)) \\
+& \quad \text{total}_4 = \text{total}_3 + \text{bonus}_1 \\
+& \quad \vdots \\
+& \text{Iteration 4:} \\
+& \quad i = \texttt{IntVal}(4), \quad \text{total}_9 = \text{total}_8 + \texttt{IntVal}(4) \\
+& \quad \text{bonus}_4 = \texttt{If}(\texttt{IntVal}(4) = \texttt{IntVal}(3), \texttt{IntVal}(10), \texttt{IntVal}(0)) \\
+& \quad \text{total}_{10} = \text{total}_9 + \text{bonus}_4
+\end{align*}
+
+\paragraph{Container Literal Unrolling}
+
+For container literals:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Loop over container literal}]
+sum_val = 0
+for item in [2, 4, 6, 8]:
+    sum_val = sum_val + item
+\end{lstlisting}
+
+This unrolls to:
+
+\begin{align*}
+& \text{sum\_val}_0 = \texttt{IntVal}(0) \\
+& \text{item} = \texttt{IntVal}(2), \quad \text{sum\_val}_1 = \text{sum\_val}_0 + \texttt{IntVal}(2) \\
+& \text{item} = \texttt{IntVal}(4), \quad \text{sum\_val}_2 = \text{sum\_val}_1 + \texttt{IntVal}(4) \\
+& \text{item} = \texttt{IntVal}(6), \quad \text{sum\_val}_3 = \text{sum\_val}_2 + \texttt{IntVal}(6) \\
+& \text{item} = \texttt{IntVal}(8), \quad \text{sum\_val}_4 = \text{sum\_val}_3 + \texttt{IntVal}(8)
+\end{align*}
+
+\paragraph{Loop Bounds Safety and Pragmatic Compilation}
+
+Following our \textbf{pragmatic compiler} philosophy, the system prioritizes questionnaire logic analysis over strict compilation failures. When encountering loops that exceed safe bounds:
+
+\begin{itemize}
+    \item Range loops: unroll up to 20 iterations, then stop
+    \item Container literals: process up to 20 elements
+    \item Exceeding bounds triggers a warning, not an error
+    \item Partial results are used for validation and analysis
+\end{itemize}
+
+This approach ensures that questionnaires with large loops can still be analyzed for logical correctness within the unrolled portion, maintaining our primary goal of validating questionnaire logic rather than achieving complete program transformation.
+
+\section{Integration with Questionnaire Logic}
+
+These compilation techniques enable sophisticated questionnaire logic while maintaining Z3 compatibility. Consider a medical risk assessment questionnaire:
+
+\paragraph{Questionnaire Items}
+
+\begin{itemize}
+    \item \textbf{age}: Integer question ``What is your age?'' (range: 18-120)
+    \item \textbf{diabetes}: Boolean question ``Have you been diagnosed with diabetes?'' (0=No, 1=Yes)
+    \item \textbf{hypertension}: Boolean question ``Do you have hypertension?'' (0=No, 1=Yes)
+    \item \textbf{smoking}: Boolean question ``Are you currently a smoker?'' (0=No, 1=Yes)
+    \item \textbf{assessment}: Computed risk level (1=Low, 2=Medium, 3=High)
+\end{itemize}
+
+\paragraph{Precondition}
+The assessment question only appears for adults:
+\begin{lstlisting}[language=Python, numbers=none]
+age.outcome >= 18
+\end{lstlisting}
+
+\paragraph{Code Block}
+The code block for risk calculation is as follows:
+\begin{lstlisting}[language=Python, numbers=none, caption={Medical risk assessment logic}]
+# Calculate risk score based on multiple factors
+risk_score = 0
+
+# Age factor
+if age.outcome >= 65:
+    risk_score = risk_score + 2
+elif age.outcome >= 45:
+    risk_score = risk_score + 1
+
+# Medical history
+for condition in [diabetes.outcome, hypertension.outcome, smoking.outcome]:
+    if condition == 1:  # Yes answer
+        risk_score = risk_score + 1
+
+# Set final assessment
+if risk_score >= 4:
+    assessment.outcome = 3  # High risk
+elif risk_score >= 2:
+    assessment.outcome = 2  # Medium risk
+else:
+    assessment.outcome = 1  # Low risk
+\end{lstlisting}
+
+\paragraph{Postcondition}
+Ensure valid risk assessment range:
+\begin{lstlisting}[language=Python, numbers=none]
+assessment.outcome >= 1 and assessment.outcome <= 3
+\end{lstlisting}
+
+\paragraph{Z3 Compiled Version}
+
+The complete transformation to Z3 constraints:
+
+\begin{align*}
+& \text{// Declare variables} \\
+& \text{age} = \texttt{Int}(\text{'age'}) \\
+& \text{diabetes} = \texttt{Int}(\text{'diabetes'}) \\
+& \text{hypertension} = \texttt{Int}(\text{'hypertension'}) \\
+& \text{smoking} = \texttt{Int}(\text{'smoking'}) \\
+& \text{assessment} = \texttt{Int}(\text{'assessment'}) \\
+\\
+& \text{// SSA transformation and risk calculation} \\
+& \text{risk\_score}_0 = \texttt{IntVal}(0) \\
+\\
+& \text{// Age factor (nested if-elif-else)} \\
+& \text{cond\_age65} = (\text{age} \geq \texttt{IntVal}(65)) \\
+& \text{cond\_age45} = (\text{age} \geq \texttt{IntVal}(45)) \\
+& \text{risk\_score}_1 = \texttt{If}(\text{cond\_age65}, \\
+& \quad \text{risk\_score}_0 + \texttt{IntVal}(2), \\
+& \quad \texttt{If}(\text{cond\_age45}, \text{risk\_score}_0 + \texttt{IntVal}(1), \text{risk\_score}_0)) \\
+\\
+& \text{// Unrolled loop for medical conditions} \\
+& \text{risk\_score}_2 = \texttt{If}(\text{diabetes} = \texttt{IntVal}(1), \\
+& \quad \text{risk\_score}_1 + \texttt{IntVal}(1), \text{risk\_score}_1) \\
+& \text{risk\_score}_3 = \texttt{If}(\text{hypertension} = \texttt{IntVal}(1), \\
+& \quad \text{risk\_score}_2 + \texttt{IntVal}(1), \text{risk\_score}_2) \\
+& \text{risk\_score}_4 = \texttt{If}(\text{smoking} = \texttt{IntVal}(1), \\
+& \quad \text{risk\_score}_3 + \texttt{IntVal}(1), \text{risk\_score}_3) \\
+\\
+& \text{// Final assessment assignment} \\
+& \text{cond\_high} = (\text{risk\_score}_4 \geq \texttt{IntVal}(4)) \\
+& \text{cond\_medium} = (\text{risk\_score}_4 \geq \texttt{IntVal}(2)) \\
+& \text{assessment} = \texttt{If}(\text{cond\_high}, \texttt{IntVal}(3), \\
+& \quad \texttt{If}(\text{cond\_medium}, \texttt{IntVal}(2), \texttt{IntVal}(1))) \\
+\\
+& \text{// Add constraints} \\
+& \text{solver.add}(\text{age} \geq \texttt{IntVal}(18))  \text{ // Precondition} \\
+& \text{solver.add}(\text{age} \leq \texttt{IntVal}(120))  \text{ // Range constraint} \\
+& \text{solver.add}(\text{assessment} \geq \texttt{IntVal}(1))  \text{ // Postcondition} \\
+& \text{solver.add}(\text{assessment} \leq \texttt{IntVal}(3))  \text{ // Postcondition}
+\end{align*}
+
+This Z3 representation enables static analysis of:
+\begin{itemize}
+    \item \textbf{Path coverage}: Verify all risk levels (1, 2, 3) are reachable
+    \item \textbf{Consistency}: Ensure no contradictory conditions exist
+    \item \textbf{Boundary analysis}: Validate edge cases (e.g., age=45, age=65, risk\_score=2, risk\_score=4)
+    \item \textbf{Postcondition satisfaction}: Prove assessment always falls within valid range
+\end{itemize}
+
+\section{Z3 Compilation for Complex Types}
+\label{sec:z3-complex-types}
+
+The extended type system (Section~\ref{sec:complex-types}) introduces significant challenges for constraint compilation. While scalar variables map directly to Z3 integer variables, vectors and matrices require more sophisticated representations using Z3's array theory and quantified formulas. This section describes how complex questionnaire types are encoded into Z3 constraints while maintaining the solver's ability to efficiently check satisfiability.
+
+The compilation process must handle three key challenges:
+\begin{itemize}
+    \item \textbf{Data structure representation}: Encoding vectors and matrices as Z3 arrays with appropriate index domains
+    \item \textbf{Constraint translation}: Converting high-level constraints (e.g., ``all different'', ``sum equals 100'') into quantified formulas
+    \item \textbf{Computational tractability}: Balancing expressiveness with solver performance, particularly for constraints involving nested quantifiers
+\end{itemize}
+
+We present the compilation strategies for each complex type, demonstrating how Python expressions operating on vectors and matrices are systematically transformed into equivalent Z3 constraints that preserve the intended semantics while remaining decidable.
+
+\paragraph{Vector Representation in Z3}
+
+Vectors are represented using Z3's array theory, where arrays map integer indices to integer values:
+
+\begin{lstlisting}[language=Python, caption={Vector item representation in Z3}]
+# Declare a vector item with 5 components
+vector_item = Array('S_i', IntSort(), IntSort())
+
+# Domain constraints: each component in [1, 10]
+domain_constraints = And([
+    And(1 <= vector_item[j], vector_item[j] <= 10)
+    for j in range(5)
+])
+
+# Example: Ranking constraint (all distinct)
+ranking_constraint = Distinct([vector_item[j] for j in range(5)])
+\end{lstlisting}
+
+\paragraph{Matrix Representation in Z3}
+
+Matrices use nested arrays, where the outer array maps row indices to inner arrays (representing rows):
+
+\begin{lstlisting}[language=Python, caption={Matrix item representation in Z3}]
+# Declare a 3x4 matrix item
+matrix_item = Array('S_i', IntSort(),
+                   ArraySort(IntSort(), IntSort()))
+
+# Access element at row j, column k
+element_j_k = matrix_item[j][k]
+
+# Domain constraints for all elements
+domain_constraints = And([
+    And([
+        And(0 <= matrix_item[j][k], matrix_item[j][k] <= 100)
+        for k in range(4)
+    ])
+    for j in range(3)
+])
+\end{lstlisting}
+
+\subsection{Compiling Complex Type Operations}
+
+The Python-to-Z3 compiler extends to handle vector and matrix operations:
+
+\paragraph{Vector Subscript Access}
+
+Python code accessing vector components translates directly to array access in Z3:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Python code with vector access}]
+# If first choice is option 1, set followup
+if ranking.outcome[0] == 1:
+    followup.outcome = 1
+else:
+    followup.outcome = 0
+\end{lstlisting}
+
+The Z3 transformation with SSA versioning:
+
+\begin{align*}
+& \text{// Declare vector as Z3 array} \\
+& \text{ranking} = \texttt{Array}(\text{'ranking'}, \texttt{IntSort}(), \texttt{IntSort}()) \\
+& \text{followup} = \texttt{Int}(\text{'followup'}) \\
+\\
+& \text{// SSA transformation} \\
+& \text{cond} = (\text{ranking}[0] = \texttt{IntVal}(1)) \\
+& \text{followup}_1 = \texttt{IntVal}(1) \\
+& \text{followup}_2 = \texttt{IntVal}(0) \\
+& \text{followup}_3 = \texttt{If}(\text{cond}, \text{followup}_1, \text{followup}_2) \\
+& \text{solver.add}(\text{followup} = \text{followup}_3)
+\end{align*}
+
+\paragraph{Aggregate Operations}
+
+Sum operations over vector components compile to Z3 sum expressions:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Python code with vector sum}]
+# Calculate total allocation (must equal 100)
+total = 0
+for j in range(4):
+    total = total + allocation.outcome[j]
+\end{lstlisting}
+
+The Z3 transformation with loop unrolling and SSA:
+
+\begin{align*}
+& \text{// Declare allocation vector} \\
+& \text{allocation} = \texttt{Array}(\text{'allocation'}, \texttt{IntSort}(), \texttt{IntSort}()) \\
+\\
+& \text{// Unrolled loop with SSA versioning} \\
+& \text{total}_0 = \texttt{IntVal}(0) \\
+& \text{total}_1 = \text{total}_0 + \text{allocation}[0] \\
+& \text{total}_2 = \text{total}_1 + \text{allocation}[1] \\
+& \text{total}_3 = \text{total}_2 + \text{allocation}[2] \\
+& \text{total}_4 = \text{total}_3 + \text{allocation}[3] \\
+\\
+& \text{// Alternatively, using Z3's Sum function} \\
+& \text{total} = \texttt{Sum}([\text{allocation}[j] \text{ for } j \text{ in range}(4)])
+\end{align*}
+
+\paragraph{Matrix Operations}
+
+Matrix operations require nested array access and iteration:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Python code with matrix row sum}]
+# Sum all ratings in first row (first product)
+row_sum = 0
+for j in range(4):
+    row_sum = row_sum + grid.outcome[0][j]
+\end{lstlisting}
+
+The Z3 transformation with nested array access:
+
+\begin{align*}
+& \text{// Declare matrix as nested Z3 arrays} \\
+& \text{grid} = \texttt{Array}(\text{'grid'}, \texttt{IntSort}(), \\
+& \quad\quad\quad \texttt{ArraySort}(\texttt{IntSort}(), \texttt{IntSort}())) \\
+\\
+& \text{// Unrolled loop for row sum with SSA} \\
+& \text{row\_sum}_0 = \texttt{IntVal}(0) \\
+& \text{row\_sum}_1 = \text{row\_sum}_0 + \text{grid}[0][0] \\
+& \text{row\_sum}_2 = \text{row\_sum}_1 + \text{grid}[0][1] \\
+& \text{row\_sum}_3 = \text{row\_sum}_2 + \text{grid}[0][2] \\
+& \text{row\_sum}_4 = \text{row\_sum}_3 + \text{grid}[0][3] \\
+\\
+& \text{// Alternative using Z3's Sum} \\
+& \text{row\_sum} = \texttt{Sum}([\text{grid}[0][j] \text{ for } j \text{ in range}(4)])
+\end{align*}
+
+\subsection{Implementation Notes}
+
+Complex types are built into the QML (Questionnaire Markup Language) type system. Each item's \texttt{outcome} attribute can be:
+
+\begin{itemize}
+    \item \textbf{Integer}: For scalar questions (single value)
+    \item \textbf{List[Integer]}: For vector questions (rankings, multiple selections)
+    \item \textbf{List[List[Integer]]}: For matrix questions (grids, comparison tables)
+\end{itemize}
+
+Because Python uses dynamic typing, the \texttt{outcome} attribute can be any of these types at runtime. The questionnaire framework determines the actual type based on the item's configuration in the QML specification.
+
+The Python-to-Z3 compiler recognizes complex type patterns. Some examples are:
+
+\begin{itemize}
+    \item \texttt{item.outcome[i]} $\rightarrow$ Vector access
+    \item \texttt{item.outcome[i][j]} $\rightarrow$ Matrix access
+    \item \texttt{sum(item.outcome)} $\rightarrow$ Vector sum
+    \item \texttt{len(item.outcome)} $\rightarrow$ Vector/matrix dimension
+\end{itemize}
+
+\paragraph{Constraint Complexity Growth}
+
+Complex types increase constraint complexity:
+
+\begin{itemize}
+    \item \textbf{Vector of size $k$}: Multiplies constraints by factor of $k$
+    \item \textbf{Matrix of size $m \times n$}: Multiplies constraints by factor of $m \cdot n$
+    \item \textbf{Distinct constraints}: Add $\binom{k}{2}$ inequality constraints for $k$ elements
+\end{itemize}
+
+To manage increased complexity:
+
+\begin{enumerate}
+    \item \textbf{Lazy constraint generation}: Only instantiate constraints for accessed components
+    \item \textbf{Symmetry breaking}: For symmetric structures, reduce redundant constraints
+    \item \textbf{Domain pruning}: Use domain knowledge to eliminate impossible combinations early
+    \item \textbf{Incremental solving}: Check satisfiability incrementally as constraints are added
+\end{enumerate}
+
+Complete QML examples demonstrating vector and matrix item types can be found in Appendix~\ref{ch:appendix-examples}.
+
+\section{Compiler Characteristics}
+
+\paragraph{AST Processing Pipeline}
+
+The Python-to-Z3 compiler follows a structured pipeline based on established compiler design principles~\cite{aho2006compilers}:
+
+\begin{enumerate}
+    \item \textbf{Parsing}: Convert Python code to Abstract Syntax Tree (AST)
+    \item \textbf{Validation}: Ensure only supported language constructs are used
+    \item \textbf{SSA Transformation}: Convert to single static assignment form
+    \item \textbf{Constraint Generation}: Translate AST nodes to Z3 constraints
+    \item \textbf{Optimization}: Simplify generated constraints where possible
+\end{enumerate}
+
+\paragraph{Supported Python Subset}
+
+The compiler supports a carefully chosen subset of Python that covers common questionnaire logic patterns:
+
+\begin{itemize}
+    \item \textbf{Arithmetic Operations}: \texttt{+, -, *, //, \%}
+    \item \textbf{Comparison Operations}: \texttt{==, !=, <, <=, >, >=}
+    \item \textbf{Boolean Operations}: \texttt{and, or, not}
+    \item \textbf{Conditional Statements}: \texttt{if/elif/else}
+    \item \textbf{Bounded Loops}: \texttt{for} loops with constant bounds
+    \item \textbf{Variable Assignment}: with SSA transformation
+    \item \textbf{List Literals}: \texttt{[1, 2, 3]} for loop iteration
+    \item \textbf{Attribute Access}: \texttt{question.outcome} for questionnaire data
+\end{itemize}
+
+\paragraph{Future Extensions}
+
+Potential improvements include:
+
+\begin{itemize}
+    \item \textbf{Function Inlining}: Support for simple user-defined functions
+    \item \textbf{Array Theory}: Better support for list operations using Z3's array theory
+    \item \textbf{String Constraints}: Integration with Z3's string theory for text processing
+    \item \textbf{Modular Analysis}: Breaking large questionnaires into analyzable components
+    \item \textbf{Exception Handling}: Support for try/except constructs
+    \item \textbf{Complex Data Structures}: Not just lists and matrices, but also dictionaries, sets, and other data structures.
+\end{itemize}

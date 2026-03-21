@@ -1,0 +1,614 @@
+\chapter{Questionnaire Definition}
+\label{ch:definitions}
+
+This chapter establishes the mathematical framework for formally representing questionnaires as logical systems. We build up the formal definitions from axiomatic components to complete questionnaire structures, then analyze their properties and validation criteria.
+
+\section{Axiomatic Building Blocks}
+
+We begin by defining the fundamental components that constitute a questionnaire. These building blocks will be composed to form the complete questionnaire structure.
+
+\begin{definition}[Item]
+\label{def:item}
+An \textbf{item} $I_i$ is a questionnaire element that presents content to respondents and optionally collects responses. Items may take several forms:
+\begin{itemize}
+    \item \textbf{Informational items}: Comments or instructions without associated outcomes (no answer variable)
+    \item \textbf{Scalar questions}: Single questions with a single integer outcome
+    \item \textbf{Question groups}: Collections of related sub-questions sharing common logical properties
+    \item \textbf{Matrix questions}: Grid-based questions where all cells share a common domain (e.g., rating scales)
+\end{itemize}
+\end{definition}
+
+Items form the basic structural units of a questionnaire, indexed as $I_1, I_2, \dots, I_n$ for a questionnaire with $n$ items.
+
+\begin{definition}[Outcome Variable]
+\label{def:outcome-variable}
+For each item $I_i$ that collects responses, there is an associated \textbf{outcome variable} $S_i$ representing the respondent's answer. The type of $S_i$ depends on the item type:
+\begin{itemize}
+    \item For scalar questions: $S_i \in \mathbb{Z}$ (single integer)
+    \item For question groups: $S_i \in \mathbb{Z}^k$ (vector of $k$ integers)
+    \item For matrix questions: $S_i \in \mathbb{Z}^{m \times n}$ (matrix of $m \times n$ integers)
+    \item For informational items: no associated outcome variable
+\end{itemize}
+\end{definition}
+
+\paragraph{Assignment}
+
+Let $\mathbf{S} := (S_1, \dots, S_n)$ denote the vector of outcome variables. An \emph{assignment} is a vector $\mathbf{a} := (a_1, \dots, a_n)$ over the corresponding domains. We write $\mathbf{a} \models \phi$ to denote that the formula $\phi$ evaluates to true under the assignment $\mathbf{a}$.
+
+We denote the complete vector of outcome variables as $\mathbf{S} = (S_1, \dots, S_n)$. For simplicity, this chapter and Chapter~\ref{ch:comprehensive} focus on scalar items. Section~\ref{sec:complex-types} extends the framework to vector and matrix types.
+
+\begin{definition}[Domain Constraint]
+\label{def:domain-constraint}
+Each outcome variable $S_i$ has an associated \textbf{domain constraint} $D_i(S_i)$ that restricts its valid values. For scalar outcomes, the domain can be specified in two ways:
+\begin{itemize}
+    \item \textbf{Range constraint}: $D_i(S_i) : \ell_i \leq S_i \leq u_i$, where $\ell_i$ and $u_i$ are the lower and upper bounds respectively
+    \item \textbf{Enumeration constraint}: $D_i(S_i) : S_i \in \{v_1, v_2, \ldots, v_k\}$, where $\{v_1, v_2, \ldots, v_k\}$ is a finite set of allowed integer values
+\end{itemize}
+\end{definition}
+
+The conjunction of all domain constraints forms the base constraint:
+\[
+B := \bigwedge_{i=1}^n D_i(S_i)
+\]
+
+Let the set of domain-respecting assignments be:
+\[
+  \mathrm{Dom} := \bigl\{\mathbf{a} \mid \bigwedge_{i=1}^{n} D_i(a_i) \text{ holds} \bigr\}
+\]
+
+\begin{definition}[Precondition]
+\label{def:precondition}
+Each item $I_i$ has a \textbf{precondition} $P_i$, a Boolean formula over the outcome variables $\mathbf{S} = (S_1, \dots, S_n)$ that determines whether the item is presented to the respondent.
+\begin{itemize}
+    \item If an assignment $\mathbf{a}$ satisfies $P_i$ (written $\mathbf{a} \models P_i$), then item $I_i$ is accessible (displayed)
+    \item If $\mathbf{a} \not\models P_i$, then item $I_i$ is not presented
+\end{itemize}
+\end{definition}
+
+Preconditions encode the conditional logic that creates branching paths through the questionnaire based on previous answers.
+
+\begin{definition}[Postcondition]
+\label{def:postcondition}
+Each item $I_i$ has a \textbf{postcondition} $Q_i$, a Boolean formula over the outcome variables $\mathbf{S} = (S_1, \dots, S_n)$ that constrains valid responses for that item.
+\begin{itemize}
+    \item Postconditions are only evaluated when the item is accessible (i.e., when $\mathbf{a} \models P_i$ for the current assignment $\mathbf{a}$)
+    \item Valid questionnaire responses must satisfy: $P_i \implies Q_i$ (if the precondition holds, then the postcondition must hold)
+\end{itemize}
+\end{definition}
+
+Postconditions ensure logical consistency between answers and can dynamically restrict acceptable values based on prior responses.
+
+\section{Questionnaire Structure}
+
+Having defined the building blocks, we now formally define a complete questionnaire structure.
+
+\begin{definition}[Questionnaire]
+\label{def:questionnaire}
+A \textbf{questionnaire} $\mathcal{G}$ is a tuple $(\mathcal{I}, \mathbf{S}, \mathcal{D}, \mathcal{P}, \mathcal{Q}, I_{\mathrm{start}})$ where:
+\begin{itemize}
+    \item $\mathcal{I} = \{I_1, \dots, I_n\}$ is a finite set of items
+    \item $\mathbf{S} = (S_1, \dots, S_n)$ is a vector of outcome variables
+    \item $\mathcal{D} = (D_1, \dots, D_n)$ where $D_i$ specifies the domain constraint for $S_i$
+    \item $\mathcal{P} = (P_1, \dots, P_n)$ where $P_i$ is the precondition formula for $I_i$ over variables $\mathbf{S}$
+    \item $\mathcal{Q} = (Q_1, \dots, Q_n)$ where $Q_i$ is the postcondition formula for $I_i$ over variables $\mathbf{S}$
+    \item $I_{\mathrm{start}} \in \mathcal{I}$ is the designated starting item
+\end{itemize}
+\end{definition}
+
+\paragraph{Satisfiability Notation:}
+
+\begin{itemize}
+    \item $\mathrm{SAT}(\phi)$ indicates $\phi$ has a model, \newline\indent i.e. there is an assignment which makes $\phi$ true.
+    \item $\mathrm{UNSAT}(\phi)$ indicates no model exists, \newline\indent i.e. there is no assignment which makes $\phi$ true.
+    \item $\Gamma \models \phi$ denotes semantic entailment.
+\end{itemize}
+
+\begin{mdframed}
+\noindent\textbf{Remark on Formal Logic Notation.} The symbol ``$\models$'' is used in two related senses following standard logical notation:
+\begin{itemize}
+    \item $\mathbf{a} \models \phi$ means assignment $\mathbf{a}$ (a valuation over the outcome variables) \emph{satisfies} formula $\phi$ (the formula evaluates to true under that assignment)
+    \item $\Gamma \models \phi$ means formula set $\Gamma$ \emph{entails} formula $\phi$ (every model of $\Gamma$ is also a model of $\phi$)
+\end{itemize}
+Context determines which sense applies:
+\begin{itemize}
+    \item if the left side is an assignment (valuation), it denotes satisfaction;
+    \item if the left side is a formula or set of formulas, it denotes entailment.
+\end{itemize}
+\end{mdframed}
+
+\begin{mdframed}
+\noindent\textbf{Example: Entailment in Questionnaire Analysis.} Consider a health survey with age-restricted questions about alcohol consumption:
+\begin{itemize}
+    \item $I_1$: ``What is your age?'' with $S_1 \in [1, 120]$
+    \item $I_2$: ``Do you consume alcohol?'' with $S_2 \in \{0, 1\}$ (0=No, 1=Yes)
+    \item $I_3$: ``How many drinks per week?'' with $S_3 \in [0, 100]$
+\end{itemize}
+
+With constraints:
+\begin{itemize}
+    \item $P_2 = (S_1 \geq 18)$ — alcohol question only asked if age $\geq 18$
+    \item $P_3 = (S_1 \geq 18) \land (S_2 = 1)$ — drinks question only if legal age AND consumes alcohol
+    \item $Q_3 = (S_3 > 0)$ — if answering drinks question, must report at least 1 drink
+\end{itemize}
+
+Let $\Gamma = \{S_1 \geq 18,\, S_2 = 1,\, P_3,\, Q_3\}$ represent ``person is 18+, consumes alcohol, item 3 is reached, and its postcondition holds.''
+
+Let $\phi = (S_3 > 0)$ be ``person drinks at least 1 drink per week.''
+
+Then $\Gamma \models \phi$ because every assignment satisfying all formulas in $\Gamma$ must also satisfy $\phi$, since $Q_3$ is defined as $(S_3 > 0)$. This entailment helps detect logical redundancies and validate questionnaire consistency.
+\end{mdframed}
+
+\section{Precondition Properties}
+
+We now analyze the properties of preconditions, specifically their reachability characteristics.
+
+\paragraph{Item Reachability:}
+
+For each item $I_i$, we classify its precondition $P_i$ with respect to the base constraints $B$ into three categories:
+
+\[
+\begin{aligned}
+\textbf{ALWAYS} &:\quad \mathrm{UNSAT}\bigl(B \wedge \lnot P_i\bigr) \\
+\textbf{NEVER}  &:\quad \mathrm{UNSAT}\bigl(B \wedge P_i\bigr) \\
+\textbf{CONDITIONAL} &:\quad \text{otherwise (i.e.,} \equiv\mathrm{SAT}(B) \text{)}
+\end{aligned}
+\]
+
+\subsubsection{Always Reachable}
+
+$P_i$ is \textbf{always reachable} (always satisfiable) if for every valid assignment $\mathbf{a}$ (i.e., $\mathbf{a}$ satisfies the domain constraints), $\mathbf{a}$ satisfies $P_i$.
+
+Formally:
+\[
+    \forall\,\mathbf{a} \in \mathrm{Dom}, \quad \mathbf{a} \models P_i
+\]
+
+where $\mathrm{Dom}$ is the set of all domain-respecting assignments. In practice, this means item $I_i$ is always presented regardless of how previous questions are answered.
+
+\subsubsection{Never Reachable}
+
+$P_i$ is \textbf{never reachable} (never satisfiable) if for every valid assignment $\mathbf{a}$, $\mathbf{a}$ does not satisfy $P_i$.
+
+Formally:
+\[
+    \forall\,\mathbf{a} \in \mathrm{Dom}, \quad \mathbf{a} \not\models P_i
+\]
+
+This indicates a logical error—there is no scenario where $I_i$ can be accessed.
+
+\subsubsection{Conditionally Reachable}
+
+$P_i$ is \textbf{conditionally reachable} (conditionally satisfiable) if neither always nor never reachable; equivalently, there exists at least one valid assignment where $P_i$ is satisfied and at least one where it is not satisfied.
+
+Formally, there exist two domain-respecting assignments such that:
+\[
+\begin{array}{l}
+\exists\,\mathbf{a} \in \mathrm{Dom}, \quad \mathbf{a} \models P_i \\
+\exists\,\mathbf{b} \in \mathrm{Dom}, \quad \mathbf{b} \not\models P_i
+\end{array}
+\]
+
+This is the normal case for conditional questions that appear based on prior answers.
+
+\begin{algorithm}[H]
+\caption{Precondition Reachability Classification}
+\label{alg:precondition-classify}
+\begin{algorithmic}[1]
+\Require Base constraints $B$, precondition $P_i$
+\Ensure Reachability status: ALWAYS, NEVER, or CONDITIONAL
+\State Check $\mathrm{SAT}(B \wedge \neg P_i)$ using SMT solver
+\If{result is UNSAT}
+    \State \textbf{return} ALWAYS \Comment{Item is always reachable}
+\EndIf
+\State Check $\mathrm{SAT}(B \wedge P_i)$ using SMT solver
+\If{result is UNSAT}
+    \State \textbf{return} NEVER \Comment{Item is never reachable}
+\Else
+    \State \textbf{return} CONDITIONAL \Comment{Item is conditionally reachable}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\section{Postcondition Properties}
+
+We analyze postconditions relative to their associated preconditions, as postconditions only matter when items are reached.
+
+\paragraph{Item Invariant Classification:}
+
+Let $B := \bigwedge_{k=1}^n D_k(S_k)$ denote the base constraints, $P_i$ the precondition, and $Q_i$ the postcondition of item $I_i$. We classify postconditions relative to their preconditions:
+
+\[
+\begin{aligned}
+\textbf{VACUOUS} &:\quad \mathrm{UNSAT}(B \wedge P_i) \\
+\textbf{TAUTOLOGICAL} &:\quad \mathrm{UNSAT}(B \wedge P_i \wedge \lnot Q_i) \\
+\textbf{CONSTRAINING} &:\quad \mathrm{SAT}(B \wedge P_i \wedge Q_i) \text{ and } \mathrm{SAT}(B \wedge P_i \wedge \lnot Q_i) \\
+\textbf{INFEASIBLE} &:\quad \mathrm{UNSAT}(B \wedge P_i \wedge Q_i)
+\end{aligned}
+\]
+
+\subsubsection{Vacuous Postconditions}
+
+The item is never reachable (precondition is never satisfiable), so the postcondition check is \textbf{vacuous}—it has no practical significance since the item never appears.
+
+Formally:
+\[
+    \forall\,\mathbf{a} \in \mathrm{Dom}, \quad \mathbf{a} \not\models P_i
+\]
+
+\subsubsection{Tautological Postconditions}
+
+$Q_i$ is \textbf{tautological} relative to $P_i$ if whenever the item is reached (under valid domain assignments), the postcondition is automatically satisfied regardless of the answer given.
+
+Formally:
+\[
+    \forall\,\mathbf{a} \in \mathrm{Dom}, \quad (\mathbf{a} \models P_i) \implies (\mathbf{a} \models Q_i)
+\]
+
+This typically indicates the postcondition adds no meaningful constraint beyond what the precondition and domain constraints already enforce.
+
+\subsubsection{Constraining Postconditions}
+
+$Q_i$ is \textbf{constraining} if it meaningfully restricts the acceptable answers when the item is reached. There exist valid assignments where the item is reached and the postcondition is satisfied, as well as assignments where it is reached but the postcondition is violated.
+
+Formally, there exist two domain-respecting assignments such that:
+\[
+\begin{array}{l}
+\exists\,\mathbf{a} \in \mathrm{Dom}, \quad (\mathbf{a} \models P_i) \text{ and } (\mathbf{a} \models Q_i) \\
+\exists\,\mathbf{b} \in \mathrm{Dom}, \quad (\mathbf{b} \models P_i) \text{ and } (\mathbf{b} \not\models Q_i)
+\end{array}
+\]
+
+This is the normal case where postconditions provide meaningful validation of responses.
+
+\subsubsection{Infeasible Postconditions}
+
+$Q_i$ is \textbf{infeasible} if it cannot be satisfied whenever the item is reached under valid domain assignments.
+
+Formally:
+\[
+    \forall\,\mathbf{a} \in \mathrm{Dom}, \quad (\mathbf{a} \models P_i) \implies (\mathbf{a} \not\models Q_i)
+\]
+
+Meaning that there does not exist any $\mathbf{a} \in \mathrm{Dom}$ such that both $\mathbf{a} \models P_i$ and $\mathbf{a} \models Q_i$. This represents a logical error—the item asks for an impossible answer given its preconditions and domain constraints.
+
+\begin{algorithm}[H]
+\caption{Postcondition Classification}
+\label{alg:postcondition-classify}
+\begin{algorithmic}[1]
+\Require Base constraints $B$, precondition $P_i$, postcondition $Q_i$
+\Ensure Classification: VACUOUS, TAUTOLOGICAL, CONSTRAINING, or INFEASIBLE
+\State Check $\mathrm{SAT}(B \wedge P_i)$ using SMT solver
+\If{result is UNSAT}
+    \State \textbf{return} VACUOUS \Comment{Item is never reachable}
+\EndIf
+\State Check $\mathrm{SAT}(B \wedge P_i \wedge Q_i)$ using SMT solver
+\If{result is UNSAT}
+    \State \textbf{return} INFEASIBLE \Comment{Postcondition cannot be satisfied when reached}
+\EndIf
+\State Check $\mathrm{SAT}(B \wedge P_i \wedge \neg Q_i)$ using SMT solver
+\If{result is UNSAT}
+    \State \textbf{return} TAUTOLOGICAL \Comment{Postcondition always holds when reached}
+\Else
+    \State \textbf{return} CONSTRAINING \Comment{Postcondition meaningfully constrains}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Global satisfiability of $Q_i$.} For completeness, we may also record the global satisfiability properties of $Q_i$ independent of $P_i$:
+\[
+\textit{q\_globally\_false} := \mathrm{UNSAT}(B \wedge Q_i), \qquad
+\textit{q\_globally\_true} := \mathrm{UNSAT}(B \wedge \lnot Q_i)
+\]
+These do not alter the precondition-based reachability classes but can be reported as diagnostic properties.
+
+\clearpage
+\section{Implementation via Python}
+
+In practice, the mathematical formulas for preconditions and postconditions are implemented using Python expressions and statements that are compiled to formal constraints.
+
+\paragraph{Python Expressions}
+Preconditions $P_i$ and postconditions $Q_i$ are specified as lists of Python \emph{boolean expressions}. These expressions:
+\begin{itemize}
+    \item Reference outcome variables through item identifiers or intermediate variables from code blocks
+    \item Support arithmetic, comparison, and logical operators
+    \item Return boolean values for constraint evaluation
+\end{itemize}
+
+\paragraph{Python Statements}
+While preconditions and postconditions are expressed as boolean expressions, complex questionnaire logic often requires intermediate computations that would make these expressions unwieldy or repetitive. Code blocks address this by allowing the introduction of auxiliary variables that store computed values derived from previous items' outcomes. For example, rather than repeating a complex calculation like \texttt{(S\_1 + S\_2) * 0.15 + S\_3} in multiple preconditions, one can compute \texttt{total\_cost = (S\_1 + S\_2) * 0.15 + S\_3} once in a code block and reference \texttt{total\_cost} in subsequent conditions.
+
+Items may contain Python \emph{code blocks} for these complex computations. These blocks:
+\begin{itemize}
+    \item Execute after the answer variable is assigned
+    \item Can perform intermediate calculations and variable assignments
+    \item Support control flow (if-statements, for-loops with bounded iteration)
+\end{itemize}
+
+\paragraph{Compilation to Z3 Constraints.}
+Both expressions and statements are compiled to Z3 SMT solver constraints through:
+\begin{itemize}
+    \item Static analysis of expression ASTs for boolean expressions
+    \item SSA transformation for variable assignments in statement blocks
+    \item Bounded loop unrolling for iterations
+    \item Conditional branching transformation for if-statements
+\end{itemize}
+
+Details of the compilation process are covered in Chapter~\ref{ch:compilation}. Throughout this thesis, we use the term \emph{Boolean formula} in the mathematical sense to refer abstractly to these predicates, while the concrete implementation uses Python expressions that are compiled to first-order logic constraints for solver-based analysis.
+
+\section{Dependency Graph and Cycle Test}
+\label{sec:dep-graph-cycle}
+
+To ensure questionnaires can be evaluated in a consistent order, we analyze dependencies between items.
+
+\begin{definition}[Path in Dependency Graph]
+\label{def:path}
+A \textbf{path} from item $I_j$ to item $I_i$ in the dependency graph $G = (V, E)$ is a sequence of distinct items
+\[
+\pi = (I_j = I_{k_0}, I_{k_1}, \dots, I_{k_m} = I_i)
+\]
+where $m \geq 0$ and for each $\ell \in \{0, \dots, m-1\}$, there exists an edge $(k_\ell \to k_{\ell+1}) \in E$.
+
+When $m = 0$, the path consists of a single item ($I_j = I_i$), representing a trivial path from an item to itself.
+\end{definition}
+
+\paragraph{Dependency Graph Construction}
+
+The dependency graph $G = (V, E)$ captures data flow dependencies between items through both direct variable usage and intermediate computations in code blocks. Construction proceeds in three stages.
+
+\paragraph{Stage 1: Build data flow graph.} Through static analysis of preconditions, postconditions, and code blocks, we construct an intermediate directed graph where vertices represent both items and variables:
+
+\begin{itemize}
+    \item \textbf{Item vertices}: Each questionnaire item $I_i$ is a vertex
+    \item \textbf{Variable vertices}: Each variable (item outcome $S_i$ or intermediate variable $v$) is a vertex
+\end{itemize}
+
+We extract dependency edges by analyzing all code blocks and formulas:
+\begin{itemize}
+    \item When item $I_j$ is answered, its outcome $S_j$ is assigned $\Rightarrow$ edge $(I_j \to S_j)$
+    \item When code assigns item outcome to variable $v$ (e.g., \texttt{v = S\_j}) $\Rightarrow$ edge $(S_j \to v)$
+    \item When code modifies variable $v$ based on $S_j$ (e.g., \texttt{v += S\_j}) $\Rightarrow$ edge $(S_j \to v)$
+    \item When variable $v$ is used in $I_i$'s precondition $P_i$ or postcondition $Q_i$ $\Rightarrow$ edge $(v \to I_i)$
+    \item When $S_j$ is directly used in $P_i$ or $Q_i$ $\Rightarrow$ edge $(S_j \to I_i)$
+\end{itemize}
+
+\begin{mdframed}
+\noindent\textbf{Example: Data Flow Graph Construction.} Consider a survey with intermediate calculations:
+\begin{itemize}
+    \item $I_1$: ``Your monthly rent'' with outcome $S_1$
+    \item $I_2$: ``Your monthly utilities'' with outcome $S_2$
+    \item Code block: \texttt{total\_housing = S\_1 + S\_2}
+    \item $I_3$: ``Other monthly expenses'' with outcome $S_3$, precondition $P_3 = (\texttt{total\_housing} < 3000)$
+\end{itemize}
+
+Data flow edges:
+\begin{itemize}
+    \item $(I_1 \to S_1)$ — answering $I_1$ assigns $S_1$
+    \item $(I_2 \to S_2)$ — answering $I_2$ assigns $S_2$
+    \item $(S_1 \to \texttt{total\_housing})$ — $S_1$ used to compute \texttt{total\_housing}
+    \item $(S_2 \to \texttt{total\_housing})$ — $S_2$ used to compute \texttt{total\_housing}
+    \item $(\texttt{total\_housing} \to I_3)$ — \texttt{total\_housing} used in $P_3$
+\end{itemize}
+\end{mdframed}
+
+\paragraph{Stage 2: Compute item-to-item dependencies.} From the data flow graph, we construct the item dependency graph $G = (V, E)$ where $V = \{I_1, \dots, I_n\}$ contains only item vertices. An edge $(I_j \to I_i) \in E$ exists if and only if there is a path in the data flow graph from $I_j$ to $I_i$ through any sequence of variable vertices.
+
+This captures transitive dependencies through intermediate variables: if $I_j$'s outcome flows through variables $v_1, \dots, v_k$ to affect $I_i$'s evaluation, then $I_i$ depends on $I_j$.
+
+\begin{mdframed}
+\noindent\textbf{Example: Item Dependency Extraction.} Continuing the previous example, the data flow graph contains paths:
+\[
+I_1 \to S_1 \to \texttt{total\_housing} \to I_3
+\]
+\[
+I_2 \to S_2 \to \texttt{total\_housing} \to I_3
+\]
+
+Resulting item dependencies:
+\begin{itemize}
+    \item $(I_1 \to I_3)$ — $I_3$ depends on $I_1$
+    \item $(I_2 \to I_3)$ — $I_3$ depends on $I_2$
+\end{itemize}
+
+Item $I_3$ cannot be evaluated until both $I_1$ and $I_2$ have been answered.
+\end{mdframed}
+
+\paragraph{General example.} Consider code that introduces variable $v$, assigns $v = S_j$, then updates $v$ based on $S_k$ (e.g., \texttt{v = v + S\_k}), and finally uses $v$ in both $P_i$ and $P_m$. The data flow graph contains:
+\[
+I_j \to S_j \to v, \quad I_k \to S_k \to v, \quad v \to I_i, \quad v \to I_m
+\]
+resulting in item dependencies: $(I_j \to I_i)$, $(I_j \to I_m)$, $(I_k \to I_i)$, $(I_k \to I_m)$.
+
+\paragraph{Stage 3: Topological ordering.} To determine a valid evaluation order, we compute a topological sort of $G$ using Kahn's algorithm~\cite{cormen2009introduction}:
+
+\begin{algorithm}[H]
+\caption{Kahn's Algorithm for Topological Sorting}
+\label{alg:kahn}
+\begin{algorithmic}[1]
+\State Initialize: $S \gets \{\text{items with in-degree } 0\}$, $L \gets \text{empty list}$
+\While{$S$ is non-empty}
+    \State Remove an item $n$ from $S$
+    \State Add $n$ to tail of $L$
+    \For{each item $m$ with edge $(n \to m)$}
+        \State Remove edge $(n \to m)$ from graph
+        \If{$m$ has in-degree $0$}
+            \State Add $m$ to $S$
+        \EndIf
+    \EndFor
+\EndWhile
+\If{graph still has edges}
+    \State \textbf{report} cycle detected
+\Else
+    \State \textbf{return} $L$ as valid topological order
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+The resulting topological order $L$ ensures that items are evaluated in dependency-respecting sequence: when item $I_i$ is reached, all variables referenced by $P_i$ have been assigned.
+
+\begin{mdframed}
+\noindent\textbf{Example: Topological Ordering.} Consider a survey with dependencies:
+\begin{itemize}
+    \item $I_1$: ``Annual income'' (no dependencies, in-degree 0)
+    \item $I_2$: ``Monthly savings'' (no dependencies, in-degree 0)
+    \item $I_3$: ``Savings rate'' with $P_3$ depending on $S_1$ and $S_2$ (in-degree 2)
+    \item $I_4$: ``Financial health'' with $P_4$ depending on $S_3$ (in-degree 1)
+\end{itemize}
+
+Dependency graph: $(I_1 \to I_3)$, $(I_2 \to I_3)$, $(I_3 \to I_4)$
+
+\textbf{Kahn's algorithm execution:}
+\begin{enumerate}
+    \item Initially $S = \{I_1, I_2\}$ (in-degree 0)
+    \item Remove $I_1$, add to $L = [I_1]$, decrement in-degree of $I_3$ to 1
+    \item Remove $I_2$, add to $L = [I_1, I_2]$, decrement in-degree of $I_3$ to 0
+    \item Add $I_3$ to $S$, remove $I_3$, add to $L = [I_1, I_2, I_3]$, decrement in-degree of $I_4$ to 0
+    \item Add $I_4$ to $S$, remove $I_4$, add to $L = [I_1, I_2, I_3, I_4]$
+    \item No edges remain, return $L$
+\end{enumerate}
+
+Valid evaluation order: Items can be evaluated in the order $I_1, I_2, I_3, I_4$ (or $I_2, I_1, I_3, I_4$).
+\end{mdframed}
+
+\paragraph{Cycle Test}
+
+A questionnaire has \textbf{no cycles} if $G$ is a \textbf{Directed Acyclic Graph (DAG)}. Equivalently, there is no sequence of distinct items $i_1, i_2, \dots, i_k$ ($k \geq 2$) such that $i_1 \to i_2 \to \dots \to i_k \to i_1$.
+
+Kahn's algorithm~\cite{cormen2009introduction} detects cycles: if the algorithm terminates with edges remaining in the graph, those edges form cycles. Cycles threaten on-the-fly navigation because no item on the cycle can be evaluated first—each depends on others in the cycle.
+
+\begin{mdframed}
+\noindent\textbf{Example: Cycle Detection.} Consider a survey with circular dependency (design error):
+\begin{itemize}
+    \item $I_1$: ``Estimated total cost'' with precondition $P_1$ depending on $S_3$
+    \item $I_2$: ``Budget available'' with precondition $P_2$ depending on $S_1$
+    \item $I_3$: ``Cost overrun'' with precondition $P_3$ depending on $S_2$
+\end{itemize}
+
+Dependency graph: $(I_1 \to I_2)$, $(I_2 \to I_3)$, $(I_3 \to I_1)$
+
+\textbf{Kahn's algorithm execution:}
+\begin{enumerate}
+    \item Initially $S = \{\}$ (all items have in-degree 1, none can start)
+    \item Algorithm terminates immediately with edges remaining
+    \item Return \textbf{CYCLE DETECTED}: $I_1 \to I_2 \to I_3 \to I_1$
+\end{enumerate}
+
+This circular dependency makes evaluation impossible—no item can be evaluated first because each depends on another item in the cycle.
+\end{mdframed}
+
+\section{Extension to Complex Item Types}
+\label{sec:complex-types}
+
+While the core concepts of questionnaire validation have been presented using single integer answer variables for clarity, real-world questionnaires often require more complex answer structures. This section extends our formal framework to handle vector and matrix item types.
+
+\paragraph{Motivation for Complex Types}
+
+Modern questionnaires frequently employ question formats that cannot be adequately represented by single integer values:
+
+\begin{itemize}
+    \item \textbf{Ranking Questions}: ``Please rank these 5 features by importance (1 = most important, 5 = least important)'' requires a vector of integers where each element appears exactly once.
+    \item \textbf{Multiple Selection Questions}: ``Select all symptoms you have experienced'' produces a binary vector indicating which options were selected.
+    \item \textbf{Allocation Questions}: ``Distribute 100 points among these 4 categories to indicate their relative importance'' requires a vector with a sum constraint.
+    \item \textbf{Grid Questions}: ``For each product, rate the following attributes on a scale of 1-10'' generates a matrix where rows represent products and columns represent attributes.
+    \item \textbf{Correlation Matrices}: ``Indicate the relationship strength between each pair of factors'' creates a symmetric matrix of values.
+\end{itemize}
+
+These question types are essential for capturing nuanced respondent preferences, multi-dimensional assessments, and complex relationships that single-value questions cannot express. The Questionnaire Markup Language (QML)~\cite{qmlsyntax} provides native support for these complex types through \texttt{QuestionGroup} and \texttt{MatrixQuestion} constructs.
+
+\paragraph{Vector and Matrix Item Types}
+
+We extend our framework to support three item types, where each item $I_i$ has an associated answer variable $S_i$ of one of the following types:
+
+\begin{description}
+    \item[Scalar Type:] $S_i \in \mathbb{Z}$ \\
+    A single integer value with domain constraint $D_i: \ell_i \leq S_i \leq u_i$
+
+    \item[Vector Type:] $\mathbf{S}_i \in \mathbb{Z}^{k_i}$ \\
+    A vector of $k_i$ integers with domain constraint:
+    \[
+    D_i: \bigwedge_{j=1}^{k_i} \left(\ell_{i,j} \leq S_{i,j} \leq u_{i,j}\right)
+    \]
+
+    \item[Matrix Type:] $\mathbf{S}_i \in \mathbb{Z}^{m_i \times n_i}$ \\
+    A matrix of $m_i \times n_i$ integers with domain constraint:
+    \[
+    D_i: \bigwedge_{j=1}^{m_i} \bigwedge_{k=1}^{n_i} \left(\ell_{i,j,k} \leq S_{i,j,k} \leq u_{i,j,k}\right)
+    \]
+\end{description}
+
+\paragraph{Unified Notation}
+
+To maintain notational consistency across all item types, we adopt the following conventions:
+
+\begin{itemize}
+    \item $S_i$ denotes the answer variable for item $I_i$ regardless of its type
+    \item For scalar items: $S_i$ directly represents the integer value
+    \item For vector items: $S_i$ represents the entire vector, with $S_{i,j}$ or $S_i[j]$ denoting the $j$-th component
+    \item For matrix items: $S_i$ represents the entire matrix, with $S_{i,j,k}$ or $S_i[j][k]$ denoting the element at row $j$, column $k$
+\end{itemize}
+
+This notation allows us to write preconditions and postconditions uniformly while accessing components when needed.
+
+\paragraph{Extended Domain Constraints}
+
+The base constraint formula naturally extends to accommodate complex types:
+
+\begin{definition}[Base Constraint for Complex Types]
+\label{def:base-constraint-complex}
+The \emph{base constraint} $B$ for a questionnaire with $n$ items of potentially complex types is defined as:
+\[
+B := \bigwedge_{i=1}^{n} D_i(S_i)
+\]
+where $D_i(S_i)$ denotes the domain constraint for item $i$, defined according to the type of $S_i$:
+\end{definition}
+
+For each type, $D_i(S_i)$ is defined as follows:
+
+\begin{itemize}
+    \item For scalar $S_i$: $D_i(S_i) := \ell_i \leq S_i \leq u_i$
+    \item For vector $\mathbf{S}_i$: $D_i(\mathbf{S}_i) := \bigwedge_{j=1}^{k_i} (\ell_{i,j} \leq S_{i,j} \leq u_{i,j})$
+    \item For matrix $\mathbf{S}_i$: $D_i(\mathbf{S}_i) := \bigwedge_{j=1}^{m_i} \bigwedge_{k=1}^{n_i} (\ell_{i,j,k} \leq S_{i,j,k} \leq u_{i,j,k})$
+\end{itemize}
+
+\subsection{Preconditions and Postconditions with Complex Types}
+
+\paragraph{Component Access in Conditions}
+
+Preconditions and postconditions can reference individual components of vector and matrix items, enabling sophisticated conditional logic:
+
+\begin{itemize}
+    \item \textbf{Vector component access}: $P_i$ may include expressions like $(S_j[2] > 3)$ to check if the second element of vector item $I_j$ exceeds 3
+    \item \textbf{Matrix element access}: $P_i$ may include $(S_j[1][3] = S_k[2][3])$ to compare specific matrix elements
+    \item \textbf{Aggregate operations}: Conditions can use sums, products, or other aggregate functions over vector/matrix components
+\end{itemize}
+
+\subsection{Common Constraint Patterns}
+
+\paragraph{Ranking Constraints}
+
+For a ranking question with $k$ options, the postcondition typically ensures:
+\begin{enumerate}
+    \item All values are within range $[1, k]$
+    \item All values are distinct (each rank used exactly once)
+\end{enumerate}
+
+Formally, for ranking item $I_i$ with $k_i$ options:
+\[
+Q_i := \left(\bigwedge_{j=1}^{k_i} 1 \leq S_{i,j} \leq k_i\right) \land \text{Distinct}(S_{i,1}, \ldots, S_{i,k_i})
+\]
+
+\paragraph{Allocation Constraints}
+
+For allocation questions where respondents distribute a fixed total across categories:
+\[
+Q_i := \left(\sum_{j=1}^{k_i} S_{i,j} = T_i\right) \land \left(\bigwedge_{j=1}^{k_i} S_{i,j} \geq 0\right)
+\]
+where $T_i$ is the total to be allocated (e.g., 100 points).
+
+\paragraph{Matrix Symmetry Constraints}
+
+For correlation or relationship matrices that must be symmetric:
+\[
+Q_i := \bigwedge_{j=1}^{m_i} \bigwedge_{k=j+1}^{n_i} (S_{i,j,k} = S_{i,k,j})
+\]
+
+Complete QML examples demonstrating vector and matrix item types in realistic survey scenarios can be found in Appendix~\ref{ch:appendix-examples}.

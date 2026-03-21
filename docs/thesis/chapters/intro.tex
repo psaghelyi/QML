@@ -1,0 +1,149 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+The proliferation of artificial intelligence in survey design and questionnaire generation has created new opportunities for automated market research, social studies, and data collection~\cite{lerner2024promise,surveymonkey2024ai}. AI-powered systems can now generate sophisticated questionnaires with complex conditional logic, branching paths, and interconnected question dependencies. However, this automation introduces a critical challenge: ensuring the logical consistency and completeness of AI-generated questionnaires~\cite{lerner2024promise,aapor2024llm}.
+
+\section{Key Concepts in Modern Questionnaires}
+
+Before discussing the challenges of AI-generated questionnaires, let us briefly introduce some key concepts that distinguish modern dynamic surveys from traditional paper forms:
+
+\textbf{Preconditions} (also called \textbf{dependencies}) occur when one question's appearance or behavior depends on answers given earlier. A question about ``What brand is your car?'' naturally depends on a positive answer to car ownership—it would make no sense to ask non-car owners about their car's brand.
+
+\textbf{Branching logic} (also called \textbf{skip logic}) refers to the ability of a questionnaire to take different paths based on previous answers. The term ``skip'' originates from the sequential nature of traditional questionnaires: when questions are listed in order, irrelevant ones must be ``skipped'' based on previous responses. For example, if someone answers ``No'' to ``Do you own a car?'', they skip all car-related questions and jump directly to questions about public transportation. Technically, this is implemented by adding the negation of the branching condition to the preconditions of the skipped questions—ensuring they are never shown to respondents who don't meet the criteria.
+
+\textbf{Question accessibility} means that every question in the survey should be reachable through at least one valid path of answers. An inaccessible question is like a room in a building with no doors—it exists in the questionnaire but no respondent can ever reach it, making it useless.
+
+\textbf{Postconditions} (also called \textbf{edit rules}) are constraints that validate answers and ensure logical consistency. They serve two key purposes: First, they explicitly check whether a given answer makes sense in the context of previous responses—for instance, when collecting household financial data, verifying that the reported total family income is not less than the sum of all individual family members' incomes plus any additional support payments. Second, postconditions can dynamically narrow the acceptable range of answers based on prior information. For example, while age might generally accept values from 1 to 100, if someone previously indicated they consume alcohol, a postcondition could enforce that their age must be at least 18 (or 21, depending on the country they selected in an earlier question to include more dynamic validation rules).
+
+\textbf{Logical contradictions} arise when the rules governing questions conflict with each other, creating impossible situations. Imagine a survey that only shows a question to people who are both ``under 18'' and ``have 20+ years of work experience''—no one can satisfy both conditions simultaneously, so the question becomes unreachable due to contradictory requirements.
+
+These concepts, while powerful for creating intelligent and adaptive surveys, introduce complexity that traditional validation methods struggle to handle, especially when AI systems generate questionnaires automatically.
+
+\section{The Problem of AI-Generated Questionnaire Logic}
+
+Modern questionnaire systems, particularly those enhanced with artificial intelligence, can automatically generate surveys with conditional logic of unprecedented complexity~\cite{olivos2024chatgptest}. While traditional manually-designed surveys remain manageable for human review, AI-generated questionnaires present a fundamentally different challenge:
+
+\begin{itemize}
+    \item \textbf{Complexity Beyond Human Comprehension}: AI can generate questionnaires with hundreds of questions containing intricate interdependencies that no human could fully analyze or verify manually.
+    \item \textbf{Exponential Path Proliferation}: With each conditional branch, the number of possible paths through the questionnaire grows exponentially, quickly exceeding what even AI systems can exhaustively validate through simulation.
+    \item \textbf{Hidden Logical Errors}: Complex preconditions involving dozens of variables can create subtle contradictions that only manifest in specific, hard-to-predict response combinations.
+    \item \textbf{Emergent Circular Dependencies}: In questionnaires with 50+ questions, circular dependencies can emerge through chains of conditions that are practically impossible to detect through manual inspection.
+    \item \textbf{Scale-Induced Validation Failure}: Traditional validation approaches that work for 10-20 question surveys become computationally intractable or unreliable when applied to AI-generated surveys with 100+ questions and complex conditional logic.
+\end{itemize}
+
+The core challenge is not merely that these problematic scenarios exist, but that automated generation creates questionnaires whose logical correctness cannot be verified by human review or even by the AI systems that created them. Beyond a certain threshold of questions and conditional complexity, detecting logical or flow errors becomes a genuine computational challenge that requires formal mathematical approaches~\cite{willenborg1995testing}.
+
+\clearpage
+\section{Historical Development of Questionnaire Logic Analysis}
+
+The challenge of validating questionnaire logic is not new, though modern AI systems have amplified its importance. The formal study of questionnaire structure has evolved over six decades, progressing from theoretical foundations to practical tools and computational complexity results.
+
+\subsection{Early Foundations (1965-1976)}
+
+The formal analysis of questionnaires began with Picard's theoretical work~\cite{picard1965theorie}, which provided the earliest mathematical treatment of questionnaire structure. Picard's \emph{Th\'eorie des questionnaires} established the conceptual foundation for viewing questionnaires as formal systems with logical relationships between questions.
+
+Building on this theoretical groundwork, Fellegi and Holt~\cite{fellegi1976systematic} introduced a systematic approach to \textbf{edit rules}—consistency constraints that survey responses must satisfy. Their fundamental principle was that edit rules must be internally consistent: there must exist at least one response that satisfies all constraints simultaneously. This principle anticipated what we now formalize as the global satisfiability requirement for questionnaire logic. While Fellegi and Holt focused on post-collection data validation and error correction, their work established the critical concept that contradictory constraints render a questionnaire problematic.
+
+\subsection{Formalization and Complexity (1988-1995)}
+
+Willenborg's dissertation~\cite{willenborg1988computational} marked a significant advance by introducing a formal definition of questionnaire logical structure, distinguishing between:
+
+\begin{itemize}
+    \item \textbf{Routing structure}: Conditional logic determining which questions are asked of which respondents
+    \item \textbf{Edit structure}: Consistency rules that responses must satisfy
+\end{itemize}
+
+This formalization enabled Willenborg to propose automated checks for logical correctness. In subsequent work, Willenborg~\cite{willenborg1995testing} proved that checking a questionnaire's combined routing and edit logic for consistency is \textbf{NP-complete}, establishing that no polynomial-time algorithm can solve the general problem. This complexity result underscores why sophisticated automated reasoning techniques are necessary for questionnaire validation.
+
+\subsection{Graph-Based Approaches (1988-2015)}
+
+Recognizing that questionnaire logic exhibits natural graph structure, researchers developed graph-based representations. Fagan and Greenberg~\cite{fagan1988census} pioneered the use of graph theory for analyzing skip patterns in census questionnaires, representing questions as nodes and conditional transitions (skips) as directed edges.
+
+Bethlehem and Hundepool~\cite{bethlehem2004tadeq} developed TADEQ (Tool for the Analysis of Electronic Questionnaires), which formalized properties that questionnaire graphs should satisfy:
+
+\begin{itemize}
+    \item Single start node and end node
+    \item Directed edges representing conditional transitions
+    \item Preferably acyclic structure (no circular dependencies)
+\end{itemize}
+
+TADEQ distinguished between \emph{logically possible routes} through a questionnaire and \emph{incorrect routes} that violate design intent, providing documentation and visualization tools for questionnaire designers.
+
+Elliott~\cite{elliott2012application} advanced graph-based validation by deriving a \emph{basis set of paths} through surveys to use as test cases, ensuring all conditional branches are tested. Elliott's work explicitly handles questionnaire features such as multiple edges between nodes (different answers leading to the same next question) and even certain acceptable loops for error-checking revisions.
+
+Schiopu-Kratina et al.~\cite{schiopu2015survey} refined the graph formalism by emphasizing that questionnaire graphs require augmentation beyond standard graph theory: edges must be labeled with the conditions under which transitions occur. In pure graph theory, an edge either exists or not; in questionnaires, edges are \emph{conditional} on specific responses. Their work stressed ensuring every question lies on some ``logically possible route'' and identifying ``empty paths'' (unreachable sequences).
+
+\subsection{Path Enumeration and Modern Approaches (2008-2019)}
+
+Manski and Molinari~\cite{manski2008skip} introduced a decision-theoretic perspective, formalizing skip logic as a design choice balancing information gain against survey cost and respondent burden. Their work provides theoretical justification for \emph{why} skip logic is used: it represents a rational trade-off in questionnaire design.
+
+Feeney and Feeney~\cite{feeney2019logical} presented one of the most recent comprehensive treatments, arguing that logical structure is critical yet often neglected in questionnaire design. They developed computer-readable representations and algorithms to enumerate all questionnaire paths, determining which respondents are eligible for which questions. By treating questionnaires ``as programs,'' they simulated execution to find unreachable questions and unintended skips, using visualization (Nassi-Shneiderman diagrams~\cite{nassi1973flowchart}) to communicate complex logic to designers.
+
+\subsection{Limitations of Prior Approaches}
+
+While these approaches made significant contributions, they share common limitations:
+
+\begin{itemize}
+    \item \textbf{Documentation-focused}: Tools like TADEQ primarily support visualization and manual validation
+    \item \textbf{Simulation-based}: Path enumeration approaches (Feeney \& Feeney) require exhaustive or sample-based traversal of respondent paths
+    \item \textbf{Scalability constraints}: Complete path enumeration becomes infeasible for complex questionnaires
+    \item \textbf{No formal guarantees}: Testing-based approaches cannot prove absence of problems, only detect present ones—a fundamental limitation of testing~\cite{dijkstra1970notes} that applies to all software systems, not just questionnaires
+\end{itemize}
+
+\section{The Declarative Revolution: From Imperative to Functional Paradigms}
+
+Traditional questionnaire systems often employ an \textbf{imperative paradigm}, where:
+
+\begin{itemize}
+    \item Questionnaire execution is a sequential process with mutable state.
+    \item Each question modifies program variables that control subsequent flow.
+    \item Skip logic is implemented through if-then-else statements in procedural code.
+    \item Validation requires executing the questionnaire with test data.
+\end{itemize}
+
+This imperative approach, while intuitive for implementation, creates challenges for formal analysis. State mutations make it difficult to reason about all possible execution paths. Forward-only execution obscures the dependencies between questions. Testing can sample paths but cannot provide completeness guarantees.
+
+\subsection{Declarative Specification of Questionnaire Logic}
+
+Our approach adopts a \textbf{declarative, constraint-based paradigm} inspired by functional programming principles and influenced by Hoare Logic~\cite{hoare1969axiomatic}. Just as Hoare triplets $\{P\}C\{Q\}$ specify program correctness through preconditions and postconditions, our framework specifies questionnaire correctness through logical constraints:
+
+\begin{itemize}
+    \item \textbf{Preconditions as predicates}: Each question's accessibility is specified by a Boolean formula over all answers, not sequential conditions—analogous to Hoare's precondition $P$ that must hold before execution
+    \item \textbf{Postconditions as constraints}: Valid responses are characterized by mathematical constraints rather than procedural validation code—analogous to Hoare's postcondition $Q$ that must hold after execution
+    \item \textbf{Immutable semantics}: Answer variables represent fixed facts about a complete questionnaire response (e.g., ``age equals 25''), not values that change during execution—we analyze all possible complete answer sets rather than simulating step-by-step questionnaire execution
+    \item \textbf{Declarative dependencies}: Relationships between questions are explicit in the logical structure, not hidden in execution order
+\end{itemize}
+
+This declarative, functional-style specification fundamentally changes how we analyze questionnaires: instead of simulating execution paths through mutable state (as in imperative approaches), we reason about relationships between immutable values. Preconditions become pure functions mapping answer sets to Boolean values. Postconditions become constraints in a constraint satisfaction problem. The entire questionnaire becomes a set of logical relationships that can be analyzed compositionally—each question's properties can be verified independently and combined, much like pure functions in functional programming can be reasoned about in isolation and composed together.
+
+\section{Contributions}
+
+This work makes the following key contributions:
+
+\begin{enumerate}
+    \item \textbf{Declarative Formal Framework}: We present a mathematical framework for representing questionnaire logic using preconditions and postconditions as logical formulas, enabling static analysis without questionnaire execution. This framework unifies concepts from prior work (Willenborg's routing/edit structures~\cite{willenborg1988computational}, Fellegi-Holt's consistency requirements~\cite{fellegi1976systematic}, graph-based dependency representations~\cite{fagan1988census,elliott2012application}) into a coherent formal system.
+    
+    \item \textbf{SMT-Based Automated Verification}: We develop techniques for translating questionnaire logic into SMT constraints, enabling automated analysis using the Z3 theorem prover~\cite{demoura2008z3}. Unlike simulation-based approaches~\cite{feeney2019logical} or testing frameworks~\cite{elliott2012application}, our approach provides mathematical guarantees about questionnaire properties.
+    
+    \item \textbf{Imperative-to-Declarative Compilation}: We design and implement a compiler that transforms embedded imperative Python code blocks into equivalent declarative Z3 constraints through Single Static Assignment (SSA)~\cite{cytron1991efficiently}, conditional branching transformation, and bounded loop unrolling~\cite{clarke2001bounded}. This bridges practical questionnaire authoring with formal verification.
+    
+    \item \textbf{Complexity-Aware Practical Implementation}: Recognizing that questionnaire consistency checking is NP-complete~\cite{willenborg1995testing}, we demonstrate that modern SMT solvers can nevertheless handle real-world questionnaires effectively, providing actionable feedback to designers.
+\end{enumerate}
+
+\section{Thesis Organization}
+
+\begin{itemize}
+    \item \textbf{Chapter~\ref{ch:related-work}}: Surveys prior research in questionnaire validation and the formal methods technologies that enable our approach.
+
+    \item \textbf{Chapter~\ref{ch:definitions}}: Provides formal definitions of questionnaires, including preconditions, postconditions, dependency graphs, and complex item types.
+
+    \item \textbf{Chapter~\ref{ch:compilation}}: Details the compilation of questionnaire logic to Z3 constraints, including SSA transformation, loop unrolling, and complex type encoding.
+
+    \item \textbf{Chapter~\ref{ch:comprehensive}}: Clarifies the relationship between global satisfiability and per-item validation with practical consequences for tool design.
+
+    \item \textbf{Chapter~\ref{ch:closing}}: Summarizes contributions, discusses limitations, and outlines future research directions.
+\end{itemize}
+
+Through this formal approach to questionnaire validation, we aim to improve the reliability and effectiveness of AI-generated surveys while honoring the decades of theoretical and practical work that preceded this thesis. By applying SMT solvers to problems that Willenborg proved NP-complete, we demonstrate that computational complexity results need not be barriers when armed with modern algorithmic techniques. By formalizing concepts that graph-based approaches visualized, we enable automated verification of properties that previous tools could only check manually.
+
+The synthesis of historical questionnaire research with modern formal methods creates a path toward questionnaires that are not just well-designed from a psychometric perspective~\cite{dillman2014internet, taherdoost2016validity}, but also logically sound from a formal verification perspective—ensuring that complex questionnaire logic behaves as intended and provides meaningful, complete data collection experiences for all respondents.

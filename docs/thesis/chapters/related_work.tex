@@ -1,0 +1,107 @@
+\chapter{Related Work}
+\label{ch:related-work}
+
+This chapter surveys the research landscape that forms the foundation for our work, examining both the historical development of questionnaire validation methods and the formal methods technologies that enable our approach. We explore how satisfiability modulo theories (SMT) solvers~\cite{barrett2011cvc4,demoura2008z3} have evolved to become practical tools for questionnaire verification, and position our contributions relative to prior work in graph-based validation, path enumeration, and edit rule consistency checking.
+
+\section{Satisfiability Modulo Theories: The Enabling Technology}
+
+The theoretical advances in questionnaire logic analysis (formalization, graph representations, complexity understanding) set the stage, but practical automated validation required computational breakthroughs. Satisfiability Modulo Theories (SMT) solvers provide the enabling technology.
+
+\paragraph{Boolean Satisfiability (SAT)}
+
+The Boolean Satisfiability problem~\cite{biere2009handbook} determines whether there exists an assignment of truth values to Boolean variables making a given formula true. SAT is historically significant as the first proven NP-complete problem~\cite{russell2010artificial}, yet modern SAT solvers efficiently handle instances with millions of variables through sophisticated algorithmic advances developed over the past two decades.
+
+While SAT provides the computational foundation, questionnaire validation requires reasoning beyond pure Boolean logic—we need to express constraints on integer answer values, arithmetic relationships, and structured data types. This motivates the extension to Satisfiability Modulo Theories.
+
+\paragraph{From SAT to SMT: Adding Mathematical Theories}
+
+While SAT solvers work with pure Boolean logic, questionnaires require reasoning about integers (answer values, ranges), arithmetic relationships, and complex data structures. Satisfiability Modulo Theories (SMT) extends SAT by combining Boolean satisfiability with decision procedures for various mathematical theories~\cite{biere2009handbook, demoura2008z3}:
+
+\begin{description}
+    \item[Linear Integer Arithmetic (LIA):] Constraints involving integer variables, equations, and inequalities—essential for answer domains and numeric preconditions   
+    \item[Arrays:] Theory of arrays with select and store operations—useful for representing vector and matrix question types
+    \item[Uninterpreted Functions:] Functions without concrete implementations, enabling abstraction
+    \item[Theory Combination:] Methods for handling formulas mixing multiple theories simultaneously
+\end{description}
+
+\paragraph{SMT Architecture and Application}
+
+Modern SMT solvers integrate Boolean satisfiability checking with theory reasoning through a layered architecture known as DPLL(T)—an extension of the Davis-Putnam-Logemann-Loveland (DPLL) SAT solving algorithm parameterized by a background theory T~\cite{nieuwenhuis2006solving}. In this framework, a SAT engine handles the Boolean structure of formulas, while specialized theory solvers check constraints in specific mathematical domains (arithmetic, arrays, etc.). When the SAT engine proposes a Boolean assignment that violates theory constraints, the theory solver provides an explanation, allowing the SAT engine to learn from the conflict and avoid similar invalid assignments in the future.
+
+For questionnaire validation, SMT solvers excel at several critical tasks:
+
+\begin{itemize}
+    \item \textbf{Reachability Analysis}: Determine whether each question can be reached under some valid answer sequence—exactly the problem Elliott~\cite{elliott2012application} and others addressed through path enumeration, but with formal guarantees
+    \item \textbf{Consistency Checking}: Verify that routing conditions and edit constraints are not contradictory—solving Fellegi and Holt's~\cite{fellegi1976systematic} edit consistency problem at the design stage
+    \item \textbf{Counterexample Generation}: When problems exist, generate concrete answer sequences demonstrating the issue—providing actionable diagnostic information for designers
+    \item \textbf{Completeness Verification}: Prove that all intended questionnaire behaviors are possible—going beyond testing to mathematical proof
+\end{itemize}
+
+\paragraph{The Z3 Theorem Prover}
+
+Z3~\cite{demoura2008z3}, developed by Microsoft Research, exemplifies modern SMT solvers. It provides:
+
+\begin{itemize}
+    \item \textbf{Rich API}: Interfaces for Python, C++, Java, and .NET
+    \item \textbf{Extensive Theory Support}: Arithmetic, bit-vectors, arrays, strings, and algebraic datatypes
+    \item \textbf{Model Generation}: Concrete variable assignments when formulas are satisfiable
+\end{itemize}
+
+The Z3 Python API enables intuitive constraint specification, making SMT solving accessible to questionnaire designers and researchers without deep formal methods expertise.
+
+\section{Bridging Questionnaire Validation and SMT Solving}
+
+This thesis synthesizes six decades of questionnaire logic research with modern SMT solving technology. Where Willenborg formalized routing and edit structures, we provide automated verification. Where Bethlehem, Elliott, and Feeney enumerated paths for testing, we prove reachability through constraint solving. Where traditional approaches documented and detected problems, we provide formal guarantees about questionnaire correctness.
+
+Our key insight is that questionnaire validation, when specified declaratively, maps naturally to SMT constraint satisfaction. By treating:
+
+\begin{itemize}
+    \item \textbf{Routing conditions} as precondition formulas (building on Willenborg's terminology)
+    \item \textbf{Edit rules} as postcondition constraints (building on Fellegi-Holt's framework)
+    \item \textbf{Question dependencies} as a dependency graph (building on graph-based approaches)
+    \item \textbf{Questionnaire validity} as a global satisfiability problem (formalized in Chapter~\ref{ch:comprehensive})
+\end{itemize}
+
+\paragraph{Comparison with Graph-Based Approaches}
+
+Graph-based methods~\cite{bethlehem2004tadeq, elliott2012application, schiopu2015survey} provide excellent visualization and documentation of questionnaire logic. TADEQ~\cite{bethlehem2004tadeq} represents questionnaires as directed graphs with single start/end nodes. Elliott~\cite{elliott2012application} derives basis path sets for systematic testing. Our work complements these approaches:
+
+\begin{itemize}
+    \item \textbf{Shared foundation}: We use dependency graphs for cycle detection and coverage analysis
+    \item \textbf{Enhanced analysis}: SMT solving enables formal verification beyond what graph visualization provides
+    \item \textbf{Diagnostic precision}: Graph visualizations annotated with reachability properties pinpoint exact locations of logical inconsistencies
+\end{itemize}
+
+\paragraph{Comparison with Path Enumeration}
+
+Feeney and Feeney~\cite{feeney2019logical} enumerate all questionnaire paths through simulation, generating concrete scenarios for validation. Our approach differs fundamentally:
+
+\begin{itemize}
+    \item \textbf{Exhaustive vs. Existence}: Path enumeration must explore all possibilities; SMT solving proves existence or absence of paths through constraint satisfaction
+    \item \textbf{Scalability}: For questionnaires with $n$ questions and average branching factor $b$, path enumeration may require exploring $O(b^n)$ paths; SMT solvers use constraint propagation and learning to prune the search space drastically~\cite{nieuwenhuis2006solving}
+    \item \textbf{Completeness}: Our approach provides completeness guarantees (all questions reachable) without enumerating all paths
+\end{itemize}
+
+\paragraph{Extending Edit Rule Consistency}
+
+Fellegi and Holt~\cite{fellegi1976systematic} established that edit rules must admit at least one consistent response. Our postcondition validity checking extends this principle from post-collection data cleaning to pre-deployment questionnaire design. We verify not just that global consistency is possible, but that every reachable question has satisfiable postconditions given its preconditions.
+
+\section{Formal Methods in Software Verification}
+
+The application of formal methods to questionnaire validation leverages decades of research in software verification. SMT solvers have become indispensable in verifying program correctness~\cite{flanagan2002extended}, finding software bugs through symbolic execution~\cite{king1976symbolic, cadar2013symbolic}, and bounded model checking~\cite{clarke2001bounded}.
+
+\paragraph{Symbolic Execution and Questionnaire Analysis}
+
+Symbolic execution~\cite{king1976symbolic, cadar2013symbolic} explores program paths using symbolic rather than concrete values. SMT solvers determine path feasibility, generate inputs triggering specific behaviors, and detect assertion failures. Questionnaire validation exhibits striking parallels:
+
+\begin{itemize}
+    \item \textbf{Path feasibility} $\leftrightarrow$ Question reachability
+    \item \textbf{Input generation} $\leftrightarrow$ Witness answer sequences
+    \item \textbf{Assertion failures} $\leftrightarrow$ Postcondition violations
+\end{itemize}
+
+By viewing questionnaires as programs where answer variables are symbolic inputs and preconditions are conditional branches, we can apply symbolic execution techniques to questionnaire validation.
+
+\paragraph{Bounded Model Checking}
+
+Bounded model checking~\cite{biere1999symbolic, clarke2001bounded} verifies systems up to a certain depth, systematically exploring state spaces within bounded limits. When questionnaires contain loops (through code blocks or iterative question structures), we apply bounded analysis: loop unrolling for statically determinable bounds enables analysis of iterative logic while maintaining decidability.

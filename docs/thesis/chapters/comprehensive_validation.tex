@@ -1,0 +1,350 @@
+\chapter{Comprehensive Questionnaire Validation}
+\label{ch:comprehensive}
+
+This chapter clarifies the relationship between a global satisfiability check of the questionnaire and the per-item implication checks used in the implementation. We formalize both notions and prove what is (and is not) equivalent, with practical consequences for validation.
+
+\section{Setup}
+
+Recall from \Cref{def:domain-constraint} that each outcome variable $S_i$ has an associated domain constraint $D_i(S_i)$. Let $B := \bigwedge_{i=1}^n D_i(S_i)$ denote the conjunction of all domain constraints in the questionnaire. For each item $I_i$, let $P_i$ be its precondition and $Q_i$ its postcondition, expressed as Boolean formulas over the answers $\mathbf{S} = (S_1,\dots,S_n)$.
+
+\begin{definition}[Global Satisfiability Formula]
+\label{def:global-formula}
+The \textbf{global satisfiability formula} for a questionnaire is:
+\[
+  \mathcal{F} \;:=\; B \;\wedge\; \bigwedge_{i=1}^n \bigl(P_i \Rightarrow Q_i\bigr)
+\]
+We say the questionnaire passes the global satisfiability check if $\mathrm{SAT}(\mathcal{F})$ holds.
+\end{definition}
+
+\begin{definition}[Witness Formula]
+\label{def:witness-formula}
+For an item $I_i$, the \textbf{witness formula} is:
+\[
+  W_i := B \wedge P_i \wedge \lnot Q_i
+\]
+If $\mathrm{SAT}(W_i)$, then there exists an assignment satisfying the domain constraints where item $I_i$ is reached (precondition $P_i$ holds) but the postcondition $Q_i$ is violated. Such an assignment demonstrates that the item can fail validation.
+\end{definition}
+
+The key diagnostic question is whether $W_i$ is satisfiable: $\mathrm{UNSAT}(W_i)$ means item $I_i$ is \emph{locally valid} (whenever it is reached, its postcondition must hold), while $\mathrm{SAT}(W_i)$ indicates a potential violation.
+
+\section{Key Relations}
+
+The following theorems capture the exact relationship between the global check and the per-item checks.
+
+\begin{theorem}[Soundness of Per-Item Validity]
+\label{thm:soundness}
+If $\mathrm{SAT}(B)$ and for every $i \in \{1, \ldots, n\}$ we have $\mathrm{UNSAT}(W_i)$, then $\mathrm{SAT}(\mathcal{F})$.
+\end{theorem}
+
+\begin{proof}
+Assume $\mathrm{SAT}(B)$ and $\mathrm{UNSAT}(W_i)$ for all $i \in \{1, \ldots, n\}$, where $W_i = B \wedge P_i \wedge \lnot Q_i$.
+
+\textbf{Step 1: Transform unsatisfiability to entailment for each item.}
+
+For each $i$, we have $\mathrm{UNSAT}(B \wedge P_i \wedge \lnot Q_i)$.
+
+By definition of unsatisfiability:
+\[
+  \nexists \mathbf{a} : \mathbf{a} \models (B \wedge P_i \wedge \lnot Q_i)
+\]
+
+Equivalently, by the quantifier negation rule (i.e., $\neg \exists x \, P(x) \equiv \forall x \, \neg P(x)$):
+\[
+  \forall \mathbf{a} : \mathbf{a} \not\models (B \wedge P_i \wedge \lnot Q_i)
+\]
+
+By the definition of satisfaction for conjunction (an assignment fails to satisfy a conjunction if it fails to satisfy at least one conjunct), this means for all assignments $\mathbf{a}$:
+\[
+  \mathbf{a} \not\models B \text{ or } \mathbf{a} \not\models P_i \text{ or } \mathbf{a} \not\models \lnot Q_i
+\]
+
+Note that $\mathbf{a} \not\models \lnot Q_i$ is equivalent to $\mathbf{a} \models Q_i$ (by double negation).
+
+Rewriting the disjunction using the logical equivalence $(\neg A \vee \neg B \vee C) \equiv ((A \wedge B) \Rightarrow C)$, we get: for all assignments $\mathbf{a}$:
+\[
+  \text{if } \mathbf{a} \models B \wedge P_i, \text{ then } \mathbf{a} \models Q_i
+\]
+
+by definition of $\models$, this is equivalent to:
+\[
+  B \wedge P_i \models Q_i
+\]
+
+By the semantic deduction theorem (moving $P_i$ to the right), this is the definition of:
+\[
+  B \models (P_i \Rightarrow Q_i)
+\]
+
+\textbf{Step 2: Combine entailments for all items.}
+
+We have established that $B \models (P_i \Rightarrow Q_i)$ for each $i \in \{1, \ldots, n\}$.
+
+By the monotonicity of entailment: if $B \models \phi_i$ for each $i$, then $B \models \bigwedge_i \phi_i$.
+
+Therefore:
+\[
+  B \models \bigwedge_{i=1}^n (P_i \Rightarrow Q_i)
+\]
+
+\textbf{Step 3: Construct a model for $\mathcal{F}$.}
+
+By hypothesis, $\mathrm{SAT}(B)$, so there exists an assignment $\mathbf{a}$ such that $\mathbf{a} \models B$.
+
+From Step 2, we have $B \models \bigwedge_{i=1}^n (P_i \Rightarrow Q_i)$.
+
+By the definition of semantic entailment, every model of $B$ is also a model of $\bigwedge_{i=1}^n (P_i \Rightarrow Q_i)$.
+
+Since $\mathbf{a} \models B$, we have $\mathbf{a} \models \bigwedge_{i=1}^n (P_i \Rightarrow Q_i)$.
+
+Therefore:
+\[
+  \mathbf{a} \models B \wedge \bigwedge_{i=1}^n (P_i \Rightarrow Q_i) = \mathcal{F}
+\]
+
+Hence, $\mathrm{SAT}(\mathcal{F})$.
+\end{proof}
+
+\begin{theorem}[Local Invalidity Does Not Imply Global Unsatisfiability]
+\label{thm:local-not-global}
+If $\mathrm{SAT}(W_i)$ for some $i$, it does not follow that $\mathrm{UNSAT}(\mathcal{F})$.
+\end{theorem}
+
+The witness $W_i$ only shows that there \emph{exists} a violating model of $B$; the global check asks whether there \emph{exists} a (possibly different) model that satisfies all implications simultaneously.
+
+\begin{mdframed}
+\noindent\textbf{Example.} Consider a two-item questionnaire:
+\begin{itemize}
+    \item $I_1$: ``What is your age?'' with $S_1 \in [0, 120]$, $P_1 = \mathit{true}$, $Q_1 = \mathit{true}$
+    \item $I_2$: ``Years of driving experience?'' with $S_2 \in [0, 100]$, $P_2 = (S_1 \geq 16)$, $Q_2 = (S_2 \leq S_1 - 16)$
+\end{itemize}
+
+The postcondition $Q_2$ ensures driving experience cannot exceed years since turning 16. Consider the witness formula for $I_2$:
+\[
+W_2 = B \wedge P_2 \wedge \lnot Q_2 = B \wedge (S_1 \geq 16) \wedge (S_2 > S_1 - 16)
+\]
+
+This is satisfiable: $S_1 = 20$, $S_2 = 10$ satisfies $W_2$ (claiming 10 years of experience at age 20, which violates $Q_2$ since $10 > 20 - 16 = 4$). So $\mathrm{SAT}(W_2)$—the per-item check reports item $I_2$ as \emph{locally invalid}.
+
+However, the global formula $\mathcal{F}$ is still satisfiable. Consider $S_1 = 30$, $S_2 = 5$:
+\begin{itemize}
+    \item $P_2 = (30 \geq 16) = \mathit{true}$, and $Q_2 = (5 \leq 30 - 16) = (5 \leq 14) = \mathit{true}$
+    \item Thus $(P_2 \Rightarrow Q_2) = \mathit{true}$
+\end{itemize}
+
+This assignment satisfies $\mathcal{F}$, so $\mathrm{SAT}(\mathcal{F})$ despite $\mathrm{SAT}(W_2)$. The local invalidity witness shows that \emph{some} respondents could violate the postcondition, but the questionnaire still has valid completions.
+\end{mdframed}
+
+\begin{theorem}[Accumulated Constraints Can Cause Global Unsatisfiability]
+\label{thm:accumulated-unsat}
+There exist questionnaires where no item is INFEASIBLE (each $\mathrm{SAT}(B \wedge P_i \wedge Q_i)$), yet the global formula $\mathcal{F}$ is unsatisfiable.
+\end{theorem}
+
+Per-item checks examine each postcondition independently against the domain constraints $B$. However, during questionnaire execution, items are evaluated in dependency order, and postconditions from earlier items must be satisfied before proceeding to later items. These accumulated constraints are not visible to per-item checks.
+
+\begin{mdframed}
+\noindent\textbf{Example.} Consider a two-item questionnaire where $I_2$ depends on $S_1$:
+\begin{itemize}
+    \item $I_1$: ``Rate your experience (1--100)'' with $S_1 \in [1, 100]$, $P_1 = \mathit{true}$, $Q_1 = (S_1 > 50)$
+    \item $I_2$: ``Confirm your rating'' with $S_2 \in \{0, 1\}$, $P_2 = \mathit{true}$, $Q_2 = (S_1 < 30)$
+\end{itemize}
+
+Since $Q_2$ references $S_1$, the dependency graph requires $I_1 \to I_2$ ordering. The respondent must satisfy $Q_1$ (i.e., $S_1 > 50$) before proceeding to $I_2$.
+
+\textbf{Per-item analysis:}
+\begin{itemize}
+    \item $W_1 = B \wedge \mathit{true} \wedge (S_1 \leq 50)$ is SAT (e.g., $S_1 = 25$) $\Rightarrow$ CONSTRAINING
+    \item $W_2 = B \wedge \mathit{true} \wedge (S_1 \geq 30)$ is SAT (e.g., $S_1 = 50$) $\Rightarrow$ CONSTRAINING
+    \item Neither item is INFEASIBLE: $\mathrm{SAT}(B \wedge P_1 \wedge Q_1)$ and $\mathrm{SAT}(B \wedge P_2 \wedge Q_2)$
+\end{itemize}
+
+\textbf{Global analysis:}
+\[
+\mathcal{F} = B \wedge (\mathit{true} \Rightarrow S_1 > 50) \wedge (\mathit{true} \Rightarrow S_1 < 30) = B \wedge (S_1 > 50) \wedge (S_1 < 30)
+\]
+
+This is unsatisfiable—no value of $S_1$ can simultaneously satisfy $S_1 > 50$ and $S_1 < 30$. Therefore $\mathrm{UNSAT}(\mathcal{F})$.
+
+The per-item checks miss this conflict because they evaluate each postcondition against all possible values of $S_1$, not accounting for the fact that $Q_1$ must already be satisfied when $I_2$ is reached.
+\end{mdframed}
+
+\section{Path-Based Validation}
+
+Path-based validation addresses a limitation of the global formula $\mathcal{F}$: the use of implications $(P_i \Rightarrow Q_i)$ that are vacuously true when preconditions are false. This section formalizes the path-based approach and proves its relationship to global validation.
+
+\begin{definition}[Execution Path]
+\label{def:execution-path}
+An \textbf{execution path} $\pi$ through a questionnaire is a sequence of items $(I_{k_1}, I_{k_2}, \ldots, I_{k_m})$ respecting the dependency order, where each item's precondition is satisfied given the accumulated constraints from preceding items.
+\end{definition}
+
+\begin{definition}[Path Constraint Formula]
+\label{def:path-formula}
+For an execution path $\pi = (I_{k_1}, \ldots, I_{k_m})$, the \textbf{path constraint formula} is:
+\[
+  \Phi_\pi \;:=\; B \;\wedge\; \bigwedge_{j=1}^{m} \bigl(P_{k_j} \wedge Q_{k_j}\bigr)
+\]
+The path is \textbf{feasible} if $\mathrm{SAT}(\Phi_\pi)$.
+\end{definition}
+
+Note the key difference from the global formula: path constraints use conjunctions $(P_i \wedge Q_i)$ for items on the path, not implications $(P_i \Rightarrow Q_i)$. This ensures that preconditions are actually satisfiable, not just vacuously handled.
+
+\begin{theorem}[Global Validity is Necessary for Path Validity]
+\label{thm:global-necessary}
+If $\mathrm{UNSAT}(\mathcal{F})$, then for every execution path $\pi$, we have $\mathrm{UNSAT}(\Phi_\pi)$.
+\end{theorem}
+
+\begin{proof}
+For any path $\pi = (I_{k_1}, \ldots, I_{k_m})$, if $\mathrm{SAT}(\Phi_\pi)$, then there exists an assignment $\mathbf{a}$ satisfying $B \wedge \bigwedge_{j=1}^m (P_{k_j} \wedge Q_{k_j})$.
+
+For items on the path: $\mathbf{a} \models P_{k_j}$ and $\mathbf{a} \models Q_{k_j}$, so $\mathbf{a} \models (P_{k_j} \Rightarrow Q_{k_j})$.
+
+For items not on the path: their preconditions are false under $\mathbf{a}$ (otherwise they would be on the path), so $(P_i \Rightarrow Q_i)$ is vacuously true.
+
+Therefore $\mathbf{a} \models \mathcal{F}$, contradicting $\mathrm{UNSAT}(\mathcal{F})$.
+\end{proof}
+
+\begin{theorem}[Global Validity Does Not Guarantee All Items Reachable]
+\label{thm:global-not-sufficient}
+There exist questionnaires where $\mathrm{SAT}(\mathcal{F})$ but some item $I_i$ with $P_i \neq \mathit{false}$ is unreachable on every feasible path.
+\end{theorem}
+
+\begin{mdframed}
+\noindent\textbf{Example.} Consider:
+\begin{itemize}
+    \item $I_1$: $S_1 \in [1, 100]$, $P_1 = \mathit{true}$, $Q_1 = (S_1 > 80)$
+    \item $I_2$: $S_2 \in \{0, 1\}$, $P_2 = (S_1 < 50)$, $Q_2 = \mathit{true}$
+\end{itemize}
+
+The dependency graph requires $I_1 \to I_2$ (since $P_2$ references $S_1$).
+
+\textbf{Per-item analysis:}
+\begin{itemize}
+    \item $P_2 = (S_1 < 50)$ is CONDITIONAL: $\mathrm{SAT}(B \wedge S_1 < 50)$ with $S_1 = 25$
+    \item $Q_1 = (S_1 > 80)$ is CONSTRAINING: $\mathrm{SAT}(W_1)$ with $S_1 = 25$
+\end{itemize}
+
+\textbf{Global analysis:}
+\[
+\mathcal{F} = B \wedge (\mathit{true} \Rightarrow S_1 > 80) \wedge ((S_1 < 50) \Rightarrow \mathit{true}) \equiv B \wedge (S_1 > 80)
+\]
+This is satisfiable (e.g., $S_1 = 90$), so $\mathrm{SAT}(\mathcal{F})$.
+
+\textbf{Path-based analysis:}
+Any path including $I_2$ requires:
+\[
+\Phi_\pi = B \wedge (P_1 \wedge Q_1) \wedge (P_2 \wedge Q_2) \equiv B \wedge (S_1 > 80) \wedge (S_1 < 50)
+\]
+This is unsatisfiable—no value of $S_1$ can satisfy both $S_1 > 80$ and $S_1 < 50$.
+
+Therefore, $I_2$ is classified as CONDITIONAL by per-item analysis (reachable when $S_1 < 50$), the global check passes, but $I_2$ is actually unreachable on any valid execution path. This is \textbf{dead code} that path-based validation detects.
+\end{mdframed}
+
+\paragraph{Practical Path Enumeration.}
+
+In practice, path enumeration leverages the dependency graph structure constructed in \Cref{sec:dep-graph-cycle}. The topological ordering computed by Kahn's algorithm (\Cref{alg:kahn}) determines the evaluation order: items with no dependencies can be traversed in any order, while dependent items must follow their predecessors. The path-based check:
+
+\begin{enumerate}
+    \item Uses the dependency graph from \Cref{sec:dep-graph-cycle} to identify predecessor relationships
+    \item For each item $I_i$ with a CONDITIONAL precondition, constructs the accumulated constraint formula from all predecessor items in the topological order
+    \item Checks if the item remains reachable under accumulated constraints
+\end{enumerate}
+
+\begin{definition}[Accumulated Reachability]
+\label{def:accumulated-reachability}
+For item $I_i$, let $\mathrm{Pred}(i) = \{j : I_j \prec I_i\}$ be the set of predecessor items, where $I_j \prec I_i$ denotes that $I_j$ precedes $I_i$ in the topological order. The \textbf{accumulated constraint formula} is:
+\[
+  \mathcal{A}_i \;:=\; B \;\wedge\; \bigwedge_{j \in \mathrm{Pred}(i)} (P_j \Rightarrow Q_j)
+\]
+Item $I_i$ is \textbf{accumulated-reachable} if $\mathrm{SAT}(\mathcal{A}_i \wedge P_i)$.
+\end{definition}
+
+\begin{mdframed}
+\noindent\textbf{Example.} Consider a three-item questionnaire:
+\begin{itemize}
+    \item $I_1$: ``Annual income'' with $S_1 \in [0, 1000000]$, $P_1 = \mathit{true}$, $Q_1 = (S_1 \geq 50000)$
+    \item $I_2$: ``Tax bracket'' with $S_2 \in \{1, 2, 3\}$, $P_2 = \mathit{true}$, $Q_2 = \mathit{true}$
+    \item $I_3$: ``Low-income assistance'' with $S_3 \in \{0, 1\}$, $P_3 = (S_1 < 30000)$, $Q_3 = \mathit{true}$
+\end{itemize}
+
+The dependency graph has $I_1 \to I_3$ (since $P_3$ references $S_1$), while $I_2$ is independent.
+
+\textbf{Per-item analysis:}
+\begin{itemize}
+    \item $P_3 = (S_1 < 30000)$ is CONDITIONAL: $\mathrm{SAT}(B \wedge S_1 < 30000)$ holds
+\end{itemize}
+
+\textbf{Accumulated reachability for $I_3$:}
+
+The predecessor set is $\mathrm{Pred}(3) = \{1\}$ (only $I_1$ precedes $I_3$ in the dependency order; $I_2$ is independent and not a predecessor).
+
+\[
+\mathcal{A}_3 = B \wedge (P_1 \Rightarrow Q_1) = B \wedge (\mathit{true} \Rightarrow S_1 \geq 50000) = B \wedge (S_1 \geq 50000)
+\]
+
+Now check accumulated reachability:
+\[
+\mathcal{A}_3 \wedge P_3 = B \wedge (S_1 \geq 50000) \wedge (S_1 < 30000)
+\]
+
+This is unsatisfiable—no income value can be both $\geq 50000$ and $< 30000$. Therefore $I_3$ is \textbf{not accumulated-reachable}.
+
+The questionnaire designer intended $I_3$ (low-income assistance) to appear for respondents with income below \$30,000, but $Q_1$ requires income $\geq$ \$50,000 to proceed. This is dead code that accumulated reachability analysis detects.
+\end{mdframed}
+
+If $\mathrm{UNSAT}(\mathcal{A}_i \wedge P_i)$ for a CONDITIONAL item, the item is dead code—its precondition can never be satisfied given the constraints imposed by predecessor items.
+
+\section{Validation Hierarchy}
+
+Questionnaire validation can be performed at three levels of increasing thoroughness and computational cost:
+
+\begin{enumerate}
+    \item \textbf{Per-item validation} (\Cref{ch:definitions}): For each item $I_i$, check independently:
+    \begin{itemize}
+        \item \emph{Reachability}: Classify $P_i$ as ALWAYS, NEVER, or CONDITIONAL using $\mathrm{SAT}(B \wedge P_i)$
+        \item \emph{Validity}: Classify $Q_i$ as TAUTOLOGICAL, CONSTRAINING, or INFEASIBLE using the witness formula $W_i$
+    \end{itemize}
+    This is the fastest level—each item can be checked independently and in parallel.
+
+    \item \textbf{Global validation}: Check $\mathrm{SAT}(\mathcal{F})$ where $\mathcal{F} = B \wedge \bigwedge_i (P_i \Rightarrow Q_i)$.
+    This verifies that at least one valid questionnaire completion exists, but uses implications that are vacuously true when preconditions are false.
+
+    \item \textbf{Path-based validation}: Enumerate all execution paths through the questionnaire and check each path's accumulated constraints. This is the most thorough level, detecting items that become unreachable due to accumulated postconditions (dead code).
+\end{enumerate}
+
+\paragraph{Relationships Between Levels.}
+
+The three validation levels form a hierarchy with precise logical relationships:
+
+\begin{itemize}
+    \item \textbf{Per-item passes $\Rightarrow$ Global passes}: By \Cref{thm:soundness}, if all $W_i$ are UNSAT (all postconditions TAUTOLOGICAL), then $\mathrm{SAT}(\mathcal{F})$ is guaranteed. No further checks needed.
+
+    \item \textbf{Global fails $\Rightarrow$ Path-based fails}: If $\mathrm{UNSAT}(\mathcal{F})$, then no execution path can be valid. The global formula is a necessary condition for questionnaire validity.
+
+    \item \textbf{Global passes $\not\Rightarrow$ All paths valid}: The global check can pass while some items are unreachable, because implications $(P_i \Rightarrow Q_i)$ are vacuously true when $P_i$ is false.
+\end{itemize}
+
+\paragraph{When Each Level Suffices.}
+
+\begin{itemize}
+    \item \textbf{Per-item validation suffices} when all postconditions are TAUTOLOGICAL. The questionnaire has no constraining logic, so any answer combination is valid.
+
+    \item \textbf{Global validation suffices} when you only need to verify that \emph{some} valid completion exists. Dead code (unreachable items) is acceptable.
+
+    \item \textbf{Path-based validation is needed} when you require that \emph{every} conditional item is actually reachable on at least one valid path. This detects design errors where accumulated postconditions make items unreachable.
+\end{itemize}
+
+\paragraph{Summary of Validation Results.}
+
+\begin{itemize}
+    \item \textbf{All $W_i$ UNSAT}: All postconditions are TAUTOLOGICAL. By \Cref{thm:soundness}, global and path-based validity are guaranteed—no further checks needed.
+
+    \item \textbf{For some $i$, $\mathrm{SAT}(W_i)$, $\mathrm{UNSAT}(\mathcal{F})$}: Accumulated CONSTRAINING postconditions conflict (\Cref{thm:accumulated-unsat}). By \Cref{thm:global-necessary}, no execution path is valid. This is a design error.
+
+    \item \textbf{For some $i$, $\mathrm{SAT}(W_i)$, $\mathrm{SAT}(\mathcal{F})$, all items accumulated-reachable}: The questionnaire is fully valid—completable with no dead code.
+
+    \item \textbf{For some $i$, $\mathrm{SAT}(W_i)$, $\mathrm{SAT}(\mathcal{F})$, some items not accumulated-reachable}: The questionnaire is completable (\Cref{thm:local-not-global}), but contains dead code (\Cref{thm:global-not-sufficient}). Report as warning.
+
+    \item \textbf{Some item INFEASIBLE}: The postcondition cannot be satisfied when the item is reached—design error requiring fix.
+
+    \item \textbf{Some item NEVER reachable (per-item)}: Precondition is unsatisfiable even without accumulated constraints—design error.
+\end{itemize}
+

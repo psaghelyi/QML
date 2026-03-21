@@ -22,14 +22,17 @@ askalot_qml/
 │   ├── validation_processor.py     # Static validation with Z3 classification
 │   ├── flow_processor.py         # Runtime navigation
 │   ├── python_runner.py          # Safe Python code execution
-│   ├── qml_diagram.py            # Mermaid diagram generation
+│   ├── qml_diagram.py            # JSON Graph IR generation for questionnaire visualization
 │   ├── qml_engine.py             # Common pipeline orchestrator
+│   ├── qml_layout.py             # Server-side Graphviz layout computation
 │   ├── qml_loader.py             # QML file loading
 │   └── qml_topology.py           # Dependency graph and topological sort
 ├── models/                        # Data models
 │   ├── item_proxy.py             # Runtime item wrapper for code blocks
 │   ├── qml_state.py              # Survey state management
 │   └── table.py                  # Matrix question support
+├── schema/                        # QML schema definitions
+│   └── qml-schema.json           # JSON Schema for QML file validation
 └── z3/                           # Z3 constraint solving
     ├── global_formula.py         # Global satisfiability check (Level 2)
     ├── item_classifier.py        # Per-item Z3 classification (Level 1)
@@ -238,9 +241,24 @@ When cycles are detected, DFS is used to find the actual cycle paths for error r
 
 **File**: [core/qml_diagram.py](askalot_qml/core/qml_diagram.py)
 
-Implements separated diagram generation:
-1. **Base diagram** (cacheable): Structure only - items, variables, preconditions, postconditions
+Generates a JSON graph intermediate representation (IR) for questionnaire visualization:
+1. **Base graph** (cacheable): Items, dependencies, preconditions, postconditions, and variable nodes
 2. **Dynamic coloring**: Applied at runtime based on mode (flow or validation)
+3. **Cycle visualization**: Highlights detected dependency cycles in the graph
+
+The graph IR is consumed by `qml_layout.py` for server-side positioning and rendered as SVG DOM elements in the browser.
+
+### QMLLayout
+
+**File**: [core/qml_layout.py](askalot_qml/core/qml_layout.py)
+
+Computes server-side node positions and edge routes using Graphviz layout engines via pygraphviz (optional `graph` dependency).
+
+**Supported engines**: dot (default, hierarchical DAG), neato, fdp, sfdp, twopi, circo
+
+**Large graph optimization**: For graphs exceeding a node threshold, only item nodes and topological edges are sent to Graphviz. Auxiliary nodes (preconditions, postconditions, variables) are positioned relative to their owner items after layout, avoiding O(n^2) Graphviz scaling.
+
+**Coordinate system**: Graphviz points (1/72 inch) are converted to pixels at 96 DPI with Y-axis flipped to match SVG coordinates (Y increases downward).
 
 ## QML Language
 
@@ -292,13 +310,24 @@ make test-unit      # Unit tests only
 make test-integration  # Integration tests only
 ```
 
+## Dependencies
+
+**Core** (required):
+- Flask >= 3.1.0
+- PyYAML >= 6.0.0
+- jsonschema >= 4.0.0
+- z3-solver == 4.15.3.0
+
+**Optional**:
+- `pygraphviz >= 1.14` — install via `pip install askalot_qml[graph]` for server-side Graphviz layout (`qml_layout.py`)
+
 ## Development Notes
 
 ### Import Patterns
 
 ```python
 # Top-level imports (recommended)
-from askalot_qml import FlowProcessor, ValidationProcessor, QMLState
+from askalot_qml import FlowProcessor, ValidationProcessor, QMLState, SCHEMA_PATH
 
 # Explicit imports
 from askalot_qml.core import FlowProcessor, ValidationProcessor
