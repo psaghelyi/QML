@@ -163,8 +163,16 @@ class ValidationProcessor:
             infeasible_count = sum(1 for c in classifications.values()
                                  if c.get("postcondition", {}).get("invariant") == "INFEASIBLE")
 
+            # Count block precondition inheritance
+            items_with_block_preconds = sum(
+                1 for item in self.state.get_all_items()
+                if item.get('_block_precondition_count', 0) > 0
+            )
+
             lines.append(f"  Precondition Reachability:")
             lines.append(f"    Always: {always_count}, Conditional: {conditional_count}, Never: {never_count}")
+            if items_with_block_preconds:
+                lines.append(f"    ({items_with_block_preconds} items inherit block-level preconditions)")
             lines.append(f"  Postcondition Effects:")
             lines.append(f"    Tautological: {tautological_count}, Constraining: {constraining_count}, Infeasible: {infeasible_count}")
 
@@ -218,9 +226,22 @@ class ValidationProcessor:
                 precond_stats[precond_status] = precond_stats.get(precond_status, 0) + 1
                 postcond_stats[postcond_invariant] = postcond_stats.get(postcond_invariant, 0) + 1
 
+            # Count block precondition inheritance
+            all_items = self.state.get_all_items()
+            items_with_block_preconditions = sum(
+                1 for item in all_items
+                if item.get('_block_precondition_count', 0) > 0
+            )
+            total_block_preconditions = sum(
+                item.get('_block_precondition_count', 0)
+                for item in all_items
+            )
+
             stats.update({
                 'precondition_classification': precond_stats,
                 'postcondition_classification': postcond_stats,
+                'block_precondition_items': items_with_block_preconditions,
+                'block_preconditions_total': total_block_preconditions,
             })
 
         return stats

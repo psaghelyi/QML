@@ -51,10 +51,13 @@ class QuestionnaireBlock(TypedDict):
     """
     Type structure for a questionnaire block.
     Blocks are logical groupings of items for organization.
+
+    Block-level preconditions are propagated to items during QMLLoader flattening,
+    so they do not need to be checked separately at runtime.
     """
     id: str
     title: NotRequired[str]
-    # No items here - blocks are just metadata for grouping
+    precondition: NotRequired[List[Condition]]
 
 
 class QMLState(dict):

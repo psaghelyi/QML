@@ -217,10 +217,14 @@ class QMLLoader:
         all predicates BEFORE schema validation. This allows QML authors to write
         bare boolean/numeric predicates (like `predicate: True`) without quotes.
 
+        Normalizes both block-level and item-level predicates.
+
         Args:
             questionnaire: Nested questionnaire dictionary (modified in place)
         """
         for block in questionnaire.get('blocks', []):
+            # Normalize block-level predicates
+            self._normalize_predicates(block)
             for item in block.get('items', []):
                 self._normalize_predicates(item)
 
@@ -253,11 +257,26 @@ class QMLLoader:
             block_metadata = {k: v for k, v in block.items() if k != 'items'}
             flat_blocks.append(block_metadata)
 
+            # Block-level preconditions are inherited by all items in the block
+            block_preconditions = block.get('precondition', [])
+
             # Extract items and add blockId reference
             for item in block.get('items', []):
                 # Add blockId to each item
                 item_with_block = dict(item)
                 item_with_block['blockId'] = block['id']
+
+                # Prepend block preconditions to item preconditions
+                if block_preconditions:
+                    item_preconditions = item_with_block.get('precondition', [])
+                    # Tag block-inherited preconditions with _source for tracking
+                    tagged_block_preconds = [
+                        {**cond, '_source': 'block', '_block_id': block['id']}
+                        for cond in block_preconditions
+                    ]
+                    item_with_block['precondition'] = tagged_block_preconds + list(item_preconditions)
+                    item_with_block['_block_precondition_count'] = len(tagged_block_preconds)
+
                 # Normalize predicates (convert YAML booleans to strings)
                 self._normalize_predicates(item_with_block)
                 flat_items.append(item_with_block)
