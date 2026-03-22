@@ -119,12 +119,12 @@ The QML models these as unified items with age-neutral wording. This is equivale
 |--------|-------|
 | Items | 242 |
 | Blocks | 33 |
-| Preconditions | 136 |
+| Preconditions | 241 |
 | Postconditions | 0 |
 | Variables | 70 |
-| Dependencies | 340 |
+| Dependencies | 1506 |
 | Cycles | **46** |
-| Connected Components | 104 |
+| Connected Components | 1 |
 | Structural Validity | `false` (cycles) |
 | Global Status | **SAT** |
 | Issues | **1** (dependency cycles) |
@@ -133,12 +133,12 @@ The QML models these as unified items with age-neutral wording. This is equivale
 
 | Classification | Count |
 |---------------|-------|
-| Precondition ALWAYS | 106 |
-| Precondition CONDITIONAL | 136 |
+| Precondition ALWAYS | 1 |
+| Precondition CONDITIONAL | 241 |
 | Precondition NEVER | 0 |
 | Postcondition NONE | 242 |
 
-All 242 items are reachable (no NEVER classifications). 106 items are unconditionally shown (ALWAYS), and 136 items are conditionally shown based on prior answers and routing variables. The absence of postconditions reflects the protocol's nature — it collects observations, not constrained responses.
+All 242 items are reachable (no NEVER classifications). 1 item is unconditionally shown (ALWAYS), and 241 items are conditionally shown based on prior answers and routing variables. The high CONDITIONAL count reflects block-level precondition propagation: 237 of 242 items inherit preconditions from their enclosing blocks (351 block-level precondition expressions total), meaning nearly every item is gated by the dispatcher's initial routing decisions. The absence of postconditions reflects the protocol's nature — it collects observations, not constrained responses.
 
 ### Cycle Analysis
 

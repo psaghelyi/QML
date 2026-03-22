@@ -1,8 +1,8 @@
 # DHS-8 Model Woman's Questionnaire: Declarative Conversion Analysis
 
 **Source:** Demographic and Health Surveys Program, DHS-8 Model Woman's Questionnaire (14 Feb 2023, DHSQ8)
-**QML File:** `evaluation/DHS8_Womans_QRE_EN_14Feb2023_DHSQ8.qml`
-**Date:** 2026-03-20 (revised)
+**QML File:** `evaluation/reference-questionnaires/DHS8_Womans_QRE_EN_14Feb2023_DHSQ8.qml`
+**Date:** 2026-03-21 (revised)
 
 ## Objective
 
@@ -34,53 +34,30 @@ Transform the DHS-8 Model Woman's Questionnaire -- a 71-page interviewer-adminis
 
 ## Validator Results
 
-### Summary (Revised 2026-03-20)
+### Summary
 
 | Metric | Value |
 |--------|-------|
 | Items | 319 |
 | Blocks | 12 |
-| Preconditions | 214 |
+| Preconditions | 317 |
 | Postconditions | 0 |
 | Variables | 125 |
+| Dependencies | 1106 |
 | Cycles | **0** |
 | Structural Validity | `true` |
 | Z3 Global Satisfiability | `true` (SAT) |
-| Z3 Item Classifications | ALWAYS: 105, CONDITIONAL: 214 |
-
-### Revision Notes (2026-03-20)
-
-The QML was revised from 229 to 319 items (+90 items, +39%) to close gaps identified in a systematic PDF-to-QML cross-reference. The following categories of items were added:
-
-**Section 1 (Background):** Q106 (move date), Q109 (reason for move). Fixed Q119 precondition to include higher-education path.
-
-**Section 3 (Contraception):** Q308/309 (injectable type/self-injection), Q310 (pill brand), Q311 (condom brand), Q312/313 (sterilization facility/date), Q318 (emergency contraception 12m), Q323/325/326/328 (side effects information chain), Q330 (method source).
-
-**Section 4 (Pregnancy/Postnatal):** Q415 (ANC source), Q418a-c (ANC services: BP, urine, blood), Q421/423/424 (tetanus chain), Q427 (iron source), Q430 (food assistance), Q433 (SP source), Q438/439 (skin-to-skin), Q447 (facility stay), Q449/450 (postnatal check timing/provider), Q452 (newborn check at facility), Q455 (post-facility maternal check), Q460 (home birth baby check), Q464 (home birth maternal check), Q469 (newborn check after leaving facility), Q474a-c (postnatal maternal checks: BP, bleeding, FP).
-
-**Section 5 (Immunization):** Q505 (ever had card), Q515/516 (Hepatitis B/24hr timing), Q518 (first polio timing), Q520 (IPV), Q523/524 (pneumococcal), Q525/526 (rotavirus).
-
-**Section 6 (Child Health):** Q607a-c (health measurements: weight, height, arm), Q615b/615d (ORS liquid, homemade fluid), Q623 (breathing problem location).
-
-**Section 7 (Marriage):** Q706A (marriage certificate), Q707 (marriage registered), Q713 (wife rank), Q715/716 (first cohabitation date/age), Q719/720 (current partner start), Q733 (2nd partner relationship), Q736 (3rd partner relationship).
-
-**Section 8 (Fertility):** Q810 (reasons not using contraception), Q814 boys/girls/either (ideal child sex composition), Q815f-h (poster/billboard/community FP media), Q819 (opinion importance).
-
-**Section 9 (Husband/Work):** Q905 (husband's grade), Q906/907 (husband's work 7d/12m), Q908 (husband's occupation), Q919 (earnings decision), Q921 (husband's earnings decision), Q926/927 (house title/name), Q929/930 (land title/name).
-
-**Section 10 (HIV):** Q1010/1011 (PrEP awareness/approval), Q1029 (first positive date), Q1040 (heard about STIs), Q1043-1045 (STI symptoms: disease, discharge, sore).
-
-**Section 11 (Other Health):** Q1104 (cervical cancer description Comment), Q1109 (other tobacco types), Q1116 (end time).
+| Z3 Item Classifications | ALWAYS: 2, CONDITIONAL: 317 |
 
 ### Z3 Per-Item Classification
 
 All 319 items were classified:
-- **105 ALWAYS reachable**: Core questions that appear unconditionally within their blocks (consent gate, background demographics, contraceptive knowledge battery, HIV knowledge, health barriers, postnatal maternal checks, health measurements)
-- **214 CONDITIONAL**: Questions gated by prior answers (pregnancy details, method-specific follow-ups, diarrhea/fever treatment, partner chain, work cascade, tetanus chain, immunization recall, marriage documents, STI symptoms, PrEP)
+- **2 ALWAYS reachable**: The introduction and consent question (asked unconditionally)
+- **317 CONDITIONAL**: All post-consent items inherit the consent block precondition (`q_consent.outcome == 1`). Within consent-gated blocks, items are further conditioned by pregnancy history, contraceptive use, child age, marital status, sexual experience, work cascade, and other classification variables
 
-### Dependency Cycles Found and Fixed
+### Dependency Cycle Resolution
 
-The initial conversion contained **4 dependency cycles**, all caused by the same pattern: a classification variable being both written in a codeBlock and read in a downstream precondition.
+The imperative questionnaire contains **4 potential dependency cycles** when converted to declarative constraints, all caused by the same pattern: a classification variable being both written in a codeBlock and read in a downstream precondition.
 
 **Cycle 1: Sterilization/Contraception routing (Section 3, pp. W-11)**
 
@@ -91,7 +68,7 @@ The initial conversion contained **4 dependency cycles**, all caused by the same
 | `var:sterilized` -> `q306_using_method` | Q306 precondition: `sterilized == 0` | Q305 CHECK: neither sterilized -> Q306 |
 | `q306_using_method` -> `var:using_method` | Q306 codeBlock writes `using_method` | Q306: if using method, set flag |
 
-**Fix**: Replaced `using_method == 0` with direct outcome check `q303_currently_using.outcome == 0`, and replaced `sterilized == 0` with `q304_sterilized.outcome == 4`. This breaks the cycle because preconditions reference specific outcomes rather than intermediate variables.
+**Resolution**: The QML uses direct outcome checks (`q303_currently_using.outcome == 0` and `q304_sterilized.outcome == 4`) instead of intermediate variables. This breaks the cycle because preconditions reference specific outcomes rather than shared classification variables.
 
 **Cycles 2-4: Work cascade (Section 9, pp. W-59)**
 
@@ -106,7 +83,16 @@ All three cycles share the same root cause: Q909, Q910, Q911, and Q912 form a ca
 | `q911` -> `var:respondent_worked` | Q911 codeBlock: `respondent_worked = 1` | Q911: if absent from job |
 | `var:respondent_worked` -> `q912` | Q912 precondition: `respondent_worked == 0` | Q912: if still no work |
 
-**Fix**: Replaced variable-based preconditions with direct outcome chains: Q910 checks `q909.outcome == 0`, Q911 checks `q909.outcome == 0 AND q910.outcome == 0`, Q912 checks all three prior outcomes == 0. This correctly models the imperative cascade without feedback loops.
+**Resolution**: The QML uses direct outcome chains: Q910 checks `q909.outcome == 0`, Q911 checks `q909.outcome == 0 AND q910.outcome == 0`, Q912 checks all three prior outcomes == 0. This models the imperative cascade without feedback loops.
+
+## Cross-Check Fixes (QML Authoring Errors)
+
+These are errors introduced during the QML conversion that were discovered by cross-checking the QML against the question inventory and PDF. They have been corrected.
+
+| # | Item(s) | Error | Fix | PDF Reference |
+|---|---------|-------|-----|---------------|
+| 1 | Q460, Q469 | Preconditions were swapped: Q460 (post-facility baby check) had `facility_birth == 0` (home birth) and Q469 (home birth baby check) had `facility_birth == 1` (facility birth). | Swapped preconditions: Q460 now has `facility_birth == 1`, Q469 has `facility_birth == 0`. Also renamed Q460 id from `q460_home_birth_check_baby` to `q460_post_facility_check_baby`. | Q459 p28: "DELIVERED IN A HEALTH FACILITY → 460"; Q468 p30: "NOT DELIVERED IN A HEALTH FACILITY → 469" |
+| 2 | Q622 | Had incorrect precondition `child_had_cough == 1`. Q622 (breathing difficulty with short rapid breaths) is asked independently of Q621 (cough), not conditionally on it. | Removed `child_had_cough == 1` from precondition. Q622 is now asked of all children in the health section. | Q622 p44: standalone question "Has (NAME) had an illness with a cough at any time in the last 2 weeks?" followed by Q622 "...fast, short, rapid breaths..." — both asked independently |
 
 ## Problems Exposed by Declarative Conversion
 
@@ -241,4 +227,4 @@ The 4 dependency cycles found during conversion (1 in contraception routing, 3 i
 
 The DHS-8 Woman's Questionnaire represents a fundamentally different design paradigm from flat surveys. Its heavy reliance on rosters, calendars, and interviewer-administered iteration means that a declarative conversion necessarily loses fidelity in sections 2 (pregnancy history), 3 (contraceptive calendar), 4-6 (per-pregnancy/per-child loops). The sections with simpler routing (1, 7, 8, 9, 10, 11) convert cleanly and benefit from the formal verification.
 
-The revised QML (319 items, March 2026) closes the major coverage gaps identified in the initial 229-item version by adding 90 items across all 11 sections, including method-specific contraception follow-ups, antenatal care service details, tetanus injection chains, postnatal check sequences, vaccination recall for additional antigens (Hepatitis B, pneumococcal, rotavirus, IPV), marriage documentation, husband's work history, asset title documentation, PrEP awareness, STI symptom questions, and tobacco type details. The remaining unrepresented elements are exclusively those requiring iterative/roster structures (pregnancy history table, contraceptive calendar, per-pregnancy Section 4 loop, per-child Sections 5/6 loops, dietary recall batteries) as documented in problems P1-P7 above.
+The QML (319 items) covers all 11 sections including method-specific contraception follow-ups, antenatal care service details, tetanus injection chains, postnatal check sequences, vaccination recall for additional antigens (Hepatitis B, pneumococcal, rotavirus, IPV), marriage documentation, husband's work history, asset title documentation, PrEP awareness, STI symptom questions, and tobacco type details. The remaining unrepresented elements are exclusively those requiring iterative/roster structures (pregnancy history table, contraceptive calendar, per-pregnancy Section 4 loop, per-child Sections 5/6 loops, dietary recall batteries) as documented in problems P1-P7 above.

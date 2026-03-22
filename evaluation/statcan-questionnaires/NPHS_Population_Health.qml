@@ -2189,7 +2189,7 @@ questionnaire:
           kind: Question
           title: "Can you see well enough to recognize a friend on the other side of the street without glasses or contact lenses?"
           precondition:
-            - predicate: age >= 12 and hstat_q1 == 0 and hstat_q2 == 1
+            - predicate: age >= 12 and (hstat_q1 == 1 or (hstat_q1 == 0 and hstat_q2 == 1))
           input:
             control: Switch
 
@@ -2197,7 +2197,7 @@ questionnaire:
           kind: Question
           title: "Can you see well enough to recognize a friend on the other side of the street with glasses or contact lenses?"
           precondition:
-            - predicate: age >= 12 and hstat_q1 == 0 and hstat_q2 == 1 and hstat_q4 == 0
+            - predicate: age >= 12 and (hstat_q1 == 1 or (hstat_q1 == 0 and hstat_q2 == 1)) and hstat_q4 == 0
           input:
             control: Switch
 

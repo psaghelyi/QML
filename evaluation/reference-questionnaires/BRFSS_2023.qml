@@ -72,6 +72,8 @@ questionnaire:
         - id: q_poorhlth
           kind: Question
           title: "During the past 30 days, for about how many days did poor physical or mental health keep you from doing your usual activities, such as self-care, work, or recreation?"
+          precondition:
+            - predicate: "q_physhlth.outcome >= 1 or q_menthlth.outcome >= 1"
           input:
             control: Editbox
             min: 0

@@ -1,7 +1,7 @@
 # NLSCY Children and Youth Survey: Declarative Conversion Analysis
 
 **Source:** Statistics Canada, National Longitudinal Survey of Children and Youth (NLSCY), Cycle 3, Catalogue no. 89F0078XIE
-**QML File:** `shared/questionnaires/NLSCY_Children_Youth.qml`
+**QML File:** `evaluation/statcan-questionnaires/NLSCY_Children_Youth.qml`
 **Date:** 2026-03-19
 
 ## Objective

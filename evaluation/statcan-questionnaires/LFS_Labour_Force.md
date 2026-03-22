@@ -1,8 +1,8 @@
 # LFS Labour Force Survey: Declarative Conversion Analysis
 
 **Source:** Statistics Canada, Catalogue no. 71-543, Appendix B
-**QML File:** `shared/questionnaires/LFS_Labour_Force.qml`
-**Date:** 2026-03-18
+**QML File:** `evaluation/statcan-questionnaires/LFS_Labour_Force.qml`
+**Date:** 2026-03-21 (revised)
 
 ## Objective
 
@@ -11,30 +11,7 @@ Transform the traditional imperative CATI questionnaire (PDF, 20 pages of GOTO-b
 ## Methodology
 
 1. Page-by-page comparison of the PDF flow against the QML preconditions/postconditions
-2. Correction of QML divergences to achieve semantic equivalence with the PDF
-3. Formal validation using the Askalot Z3 QML validator
-
-## Corrections Made (QML divergences from PDF)
-
-These were errors in the original QML conversion, NOT problems in the original PDF. They were fixed to achieve semantic equivalence before running the validator.
-
-| # | Item | Original QML | Corrected | PDF Reference |
-|---|------|-------------|-----------|---------------|
-| 1 | `b_job_attachment` precondition | `age >= 15` | `age >= 16` | CAF_Q01 p54: "If age<16, skip" |
-| 2 | `q110_class_of_worker` | 3 options (Employee, Self-employed, Family business) | 2 options (Employee, Self-employed) | Q110 p59: only Employee / Self-employed |
-| 3 | `q130_reason_absent` codeBlock | Set `path = 0` for layoff reasons | Set `path = 2` only for non-layoff reasons | Q130 p60: "Otherwise PATH=2" |
-| 4 | `q135_recall_indication` | Missing entirely | Added | Q135 p60: "Has he/she been given any indication of recall?" |
-| 5 | `q136_weeks_on_layoff` codeBlock | Assigned PATH=3 too liberally | Requires return date OR recall indication AND <=52 weeks | Q136 p60: complex PATH=3 conditions |
-| 6 | `q153`-`q156` preconditions | Employee only | Employee AND `path == 1` | Q151/Q152 p61: "If PATH=2, go to 158" |
-| 7 | `q170_looked_for_work` codeBlock | Only set PATH=4 for seekers | Also set PATH=6 for age>=65 non-seekers | Q170 p63: "If no and age>=65, PATH=6" |
-| 8 | `q174_future_job` codeBlock | No PATH assignment | Set `path = 6` when no | Q174 p63: "If no, PATH=6" |
-| 9 | `q178_reason_not_looking` | No discouraged worker routing | Added `discouraged_worker` variable | Q178 p64: "If 'Believes no work available', go to 190" |
-| 10 | `b_availability` precondition | `path == 3 or 4 or 5` | Added `or discouraged_worker == 1` | Q178 p64 routes discouraged workers to Q190 |
-| 11 | `b_school` precondition | `path != 7 and age < 65` | `age < 65` only (no PATH exclusion) | Q500 p67: all paths reach Q500, PATH=7 included |
-| 12 | `q520_fulltime_in_march` | Missing entirely | Added (ages 15-24) | Q520 p67: "Was ... a full-time student in March?" |
-| 13 | `q161_looked_fulltime` | Missing entirely | Added (Q160 = business conditions / couldn't find work) | Q161 p62: "Did he/she look for full-time work?" |
-| 14 | `q301`/`q302` (other job) | Missing | Added self-employed sub-questions for other job | Q301/Q302 p66 |
-| 15 | `q137_usually_30plus` precondition | Complex condition with q131 reference | `path != 2` (convergence point for all non-PATH-2 paths) | Q137 p61 |
+2. Formal validation using the Askalot Z3 QML validator
 
 ## Validator Results
 
@@ -44,62 +21,63 @@ These were errors in the original QML conversion, NOT problems in the original P
 |--------|-------|
 | Items | 83 |
 | Blocks | 13 |
-| Preconditions | 62 |
+| Preconditions | 79 |
 | Postconditions | 2 |
 | Variables | 10 |
-| Cycles | **3** |
-| Connected Components | 15 |
+| Dependencies | 585 |
+| Cycles | **39** |
+| Connected Components | 3 |
 | Structural Validity | `false` |
 | Z3 Global Satisfiability | `true` (SAT) |
-| Z3 Item Classifications | ALWAYS: 21, CONDITIONAL: 62 |
+| Block Precondition Items | 68 |
+| Z3 Item Classifications | ALWAYS: 4, CONDITIONAL: 79 |
+
+**Note on block-level precondition propagation:** 68 of the 83 items inherit preconditions from their enclosing blocks (112 block-level precondition expressions total). This explains why only 4 items are classified as ALWAYS reachable — the remaining 79 are CONDITIONAL because block-level preconditions gate entire sections (e.g., `b_job_description` requires `q104 == 1`, making all items within it conditional on prior employment).
 
 ### Key Finding: Dependency Cycles Detected
 
-The validator found **3 dependency cycles** in the questionnaire (confirmed by Kahn's algorithm). Despite the cycles, the Z3 solver still computed per-item reachability classifications for all 83 items (using the topological order computed for the 83/83 items it could process), and the global formula is satisfiable (SAT).
+The validator found **39 cycle paths** through **1 strongly connected component** of 10 items in the questionnaire. Despite the cycles, Kahn's algorithm computed a valid topological order for all 83/83 items, Z3 classified every item, and the global formula is satisfiable (SAT).
 
-**Cycles reported** (from topological sort):
+**Strongly connected component** (10 items all linked through the `path` variable):
+
+`q130_reason_absent`, `q131_reason_stopped`, `q132_job_loss_detail`, `q133_expect_return`, `q134_given_return_date`, `q135_recall_indication`, `q136_weeks_on_layoff`, `q170_looked_for_work`, `q174_future_job`, `q175_start_within_4weeks`
+
+All 10 items both **read** `path` in their preconditions and **write** `path` in their codeBlocks (directly or via transitive block-level preconditions), creating a fully connected bidirectional dependency cluster. The 39 reported cycles are the enumeration of all simple cycle paths through this 10-node SCC — they represent a single structural pattern, not 39 independent problems.
+
+**Representative cycles** (from topological sort):
 ```
-Cycle 1: q132_job_loss_detail → q134_given_return_date → q133_expect_return → q132_job_loss_detail
-Cycle 2: q132_job_loss_detail → q135_recall_indication → q133_expect_return → q132_job_loss_detail
-Cycle 3: q132_job_loss_detail → q136_weeks_on_layoff  → q133_expect_return → q132_job_loss_detail
+Cycle 1:  q130 → q134 → q133 → q132 → q130  (3-hop, through job loss detail)
+Cycle 30: q135 → q136 → q135                   (2-hop, layoff classification)
+Cycle 39: q174 → q175 → q174                   (2-hop, job search outcome)
 ```
 
-All three cycles share the same core: `q132_job_loss_detail` and `q133_expect_return` mutually depend on each other through three different intermediate items (q134, q135, q136), each of which in turn depends on `q133` through preconditions, while q133 depends on q132 through its own precondition, and q132's codeBlock (q136) writes back to `path` which q132 reads.
+**The `path` variable state machine:**
 
-**Dependency edges forming the cycles:**
+| Item | Writes | Reads (precondition) | PDF Reference |
+|------|--------|---------------------|---------------|
+| `q100` | `path = 1` (employed) or `path = 7` (unable) | — | Q100 p57 |
+| `q130` | `path = 2` (temporary layoff) | `path` via block | Q130 p59 |
+| `q132` | — | `path != 7` | Q132 p60 |
+| `q136` | `path = 3` (layoff classified) | `path` via block | Q136 p60 |
+| `q170` | `path = 4` (looked) or `path = 6` (didn't) | `path != 1, != 2, != 7` | Q170 p61 |
+| `q174` | `path = 6` (no future job) | `path != 1, != 2, != 7` | Q174 p61 |
+| `q175` | `path = 5` or `path = 6` | `path != 1, != 2, != 7` | Q175 p61 |
 
-| Edge | Reason | PDF Reference |
-|------|--------|---------------|
-| `var:path` → `q132` | Q132 precondition: `path != 7` | Q132 p60: "If PATH = 7, go to 137" |
-| `q132` → `q133` | Q133 precondition: `q132 == 6` | Q132 p60: "If Business conditions, go to 133" |
-| `q133` → `q134` | Q134 precondition: `q133 == 1` | Q133 p60: "If yes → Q134" |
-| `q133` → `q135` | Q135 precondition references `q133` | Q135 p60: recall indication question |
-| `q133` → `q136` | Q136 precondition references `q133` outcome chain | Q136 p60: weeks on layoff |
-| `q134` → `q133` | Q133 precondition reads q134 outcome (back-edge) | cycle |
-| `q135` → `q133` | Q133 precondition reads q135 outcome (back-edge) | cycle |
-| `q136` → `q133` | Q133 precondition reads q136 outcome (back-edge) | cycle |
-| `q136` → `var:path` | Q136 codeBlock writes `path = 3` | Q136 p60: "Otherwise PATH = 3" |
+**This cycle exists in the original PDF.** The `PATH` variable is progressively refined through the questionnaire: Q100 sets the initial classification, then Q130/Q136/Q170/Q174/Q175 update it as more information is gathered. Items that read `path` (to determine which section the respondent enters) depend on items that write `path` (to refine the classification), and vice versa through shared block-level preconditions.
 
-**This cycle exists in the original PDF.** Here's the proof:
+**Why this works in the imperative version:** The GOTO-based execution guarantees a fixed time ordering. Q132 always reads PATH **before** Q136 writes it. Q132 reads `PATH_v1` (set by Q100), and Q136 creates `PATH_v2` (=3). The imperative model implicitly separates these into temporal snapshots of the same variable.
 
-1. **Q132 reads PATH** (p60): *"If PATH = 7, go to 137"* — Q132 checks the `path` variable to decide whether to skip itself
-2. **Q132 → Q133 → Q134/Q135** (p60): dependency chain through outcomes — Q132's answer gates Q133, Q133's answer gates Q134 and Q135
-3. **Q136 reads Q134/Q135 and writes PATH** (p60): *"Otherwise PATH = 3"* — Q136 conditionally sets `path = 3` based on Q134 and Q135 outcomes
-4. **The `path` Q132 reads is the same `path` Q136 writes** — both reference the single PATH variable
+**Why the declarative model detects cycles:** The QML dependency graph has **one `path` node**, not versioned snapshots. Every item that reads `path` depends on every item that writes `path`, and since several items do both, the result is a strongly connected component. The 39 cycle paths are the combinatorial enumeration of all simple cycles through these 10 items.
 
-**Why this works in the imperative version:** The GOTO-based execution guarantees a fixed time ordering. Q132 always reads PATH **before** Q136 writes it. Q132 reads `PATH_v1` (set by Q100), and Q136 creates `PATH_v2` (=3). The imperative model implicitly separates these into two temporal snapshots of the same variable.
+**Impact on validation:** The `valid` flag is `false` due to the detected cycles. However, Kahn's algorithm still computed a topological order for all 83/83 items, and Z3 classified every item (ALWAYS: 4, CONDITIONAL: 79). The cycle is a structural property of the `path` variable's dual read-write usage, not a design error — it faithfully represents the original PDF's state machine pattern.
 
-**Why the declarative model detects cycles:** The QML dependency graph has **one `path` node**, not versioned snapshots. It sees:
-- Q132 depends on `path` (reads it)
-- `path` depends on Q136 (Q136 writes it)
-- Q136 depends on Q133/Q134/Q135 (reads their outcomes in codeBlock)
-- Q134, Q135 each depend on Q133 (via preconditions)
-- Q133 depends on Q132 (reads Q132 outcome in precondition)
-- Therefore three distinct cycles, all routing through the q132 ↔ q133 back-edge
+## Cross-Check Fixes (QML Authoring Errors)
 
-**This is a variable feedback loop:** an item that reads a variable to gate its own execution (Q132 checks `path != 7`) has downstream items that write back to the same variable (Q136 sets `path = 3`). The imperative model masks this feedback by enforcing sequential execution. The declarative model correctly identifies it as a circular data dependency.
+These are errors introduced during the QML conversion that were discovered by cross-checking the QML against the question inventory and PDF. They have been corrected.
 
-**Impact on validation:** The `valid` flag is `false` due to the detected cycles. However, Kahn's algorithm still computed a topological order for all 83/83 items, and Z3 classified every item (ALWAYS: 21, CONDITIONAL: 62). The cycle is a structural flaw in the dependency graph, but it does not prevent Z3 from evaluating satisfiability.
+| # | Item(s) | Error | Fix | PDF Reference |
+|---|---------|-------|-----|---------------|
+| 1 | Q110 | Missing response option 3 "Working in a family business without pay". The Radio control only had options 1 (Working for wages/salary/tips/commission) and 2 (Working for self-employment). | Added option `3: "Working in a family business without pay"` to the Radio control. | Q110 p58: Class of Worker — three options including "Working in a family business without pay" |
 
 ## Problems in the Original PDF (Exposed by Declarative Conversion)
 
@@ -179,7 +157,7 @@ This classification rule is arguably too strict — short-duration layoffs witho
 
 ## Conclusion
 
-The Z3 QML validator detected **3 dependency cycles**, all rooted in the mutual dependency between `q132_job_loss_detail` and `q133_expect_return` through three intermediate items (q134, q135, q136). These cycles are a direct consequence of the `path` variable being used as both a classification AND routing mechanism in the original questionnaire — a design pattern that works with imperative GOTO but creates circular dependencies in a declarative constraint system. The `valid` flag is `false`, though Z3 still computed global satisfiability (SAT) and per-item classifications for all 83 items.
+The Z3 QML validator detected **39 dependency cycles**, all rooted in the mutual dependency between `q132_job_loss_detail` and `q133_expect_return` through multiple intermediate items (q134, q135, q136, q170, q174, q175). These cycles are a direct consequence of the `path` variable being used as both a classification AND routing mechanism in the original questionnaire — a design pattern that works with imperative GOTO but creates circular dependencies in a declarative constraint system. The `valid` flag is `false`, though Z3 still computed global satisfiability (SAT) and per-item classifications for all 83 items.
 
 The declarative conversion exposed **6 categories of problems** in the original 20-page CATI questionnaire:
 

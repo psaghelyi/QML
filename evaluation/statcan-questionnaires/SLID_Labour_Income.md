@@ -1,7 +1,7 @@
 # SLID 1994 Preliminary Interview: Declarative Conversion Analysis
 
 **Source:** Statistics Canada, Catalogue No. 94-10, 1994 Preliminary Interview Questionnaire
-**QML File:** `shared/questionnaires/SLID_Labour_Income.qml`
+**QML File:** `evaluation/statcan-questionnaires/SLID_Labour_Income.qml`
 **Date:** 2026-03-19
 
 ## Objective

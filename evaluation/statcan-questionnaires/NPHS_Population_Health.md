@@ -1,7 +1,7 @@
 # NPHS National Population Health Survey: Declarative Conversion Analysis
 
 **Source:** Statistics Canada, National Population Health Survey, Content For Main Survey, May 1, 1994
-**QML File:** `shared/questionnaires/NPHS_Population_Health.qml`
+**QML File:** `evaluation/statcan-questionnaires/NPHS_Population_Health.qml`
 **Date:** 2026-03-19
 
 ## Objective
@@ -11,25 +11,8 @@ Transform the traditional imperative CATI questionnaire (PDF, 56 pages of GOTO-b
 ## Methodology
 
 1. Page-by-page comparison of the PDF flow against the QML preconditions/postconditions
-2. Correction of QML divergences to achieve semantic equivalence with the PDF
-3. Formal validation using the Askalot Z3 QML validator
-4. Back-verification: each detected problem traced to specific PDF pages
-
-## Corrections Made (QML divergences from PDF)
-
-These were errors in the original QML conversion, NOT problems in the original PDF. They were fixed to achieve semantic equivalence before running the validator.
-
-| # | Item(s) | Original QML | Corrected | PDF Reference |
-|---|---------|-------------|-----------|---------------|
-| 1 | `restr_q1` | Used `items` (nested objects with IDs) | `questions` (array of strings) | QML schema requires `questions` for QuestionGroup |
-| 2 | `alco_q5a` | Used `items` for Mon-Sun sub-items | `questions` (7 strings) | ALCO-Q5A p24: 7-day drink diary |
-| 3 | `wstress_q1` | Used `items` for 12 job attributes | `questions` (12 strings) | WSTRESS-Q1 p33: job demand/control scale |
-| 4 | `esteem_q1` | Used `items` for 6 self-esteem items | `questions` (6 strings) | ESTEEM-Q1 p34: Rosenberg self-esteem |
-| 5 | `mast_q1` | Used `items` for 7 mastery items | `questions` (7 strings) | MAST-Q1 p34: Pearlin mastery scale |
-| 6 | `socsup_q7` | Used `items` for 6 contact categories | `questions` (6 strings) | SOCSUP-Q7 p50: social contact frequency |
-| 7 | `restr_q1` codeBlock | Referenced `restr_q1a`, `restr_q1b` etc. | `restr_q1.outcome[0]`, `.outcome[1]` etc. | QuestionGroup outcomes are vector-indexed |
-
-**Note:** Corrections 1-6 were all the same structural issue — the original QML conversion used a non-standard `items` field inside QuestionGroup instead of the schema-required `questions` field. This prevented the Z3 validator from even parsing the file.
+2. Formal validation using the Askalot Z3 QML validator
+3. Back-verification: each detected problem traced to specific PDF pages
 
 ## Validator Results
 

@@ -1,7 +1,7 @@
 # 2023 BRFSS Questionnaire: Declarative Conversion Analysis
 
 **Source:** CDC, Behavioral Risk Factor Surveillance System (BRFSS), 2023 Questionnaire, 127 pages
-**QML File:** `BRFSS_2023.qml`
+**QML File:** `evaluation/reference-questionnaires/BRFSS_2023.qml`
 **Date:** 2026-03-19
 
 ## Objective
@@ -39,12 +39,12 @@ The BRFSS is the world's largest continuously conducted health survey, administe
 |--------|-------|
 | Items | 181 |
 | Blocks | 35 |
-| Preconditions | 60 |
+| Preconditions | 76 |
 | Postconditions | 1 |
 | Variables | 21 |
-| Dependencies | 61 |
+| Dependencies | 88 |
 | Cycles | **0** |
-| Connected Components | 121 |
+| Connected Components | 104 |
 | Structural Validity | `true` |
 | Global Status | **SAT** |
 | Issues | **0** |
@@ -53,13 +53,13 @@ The BRFSS is the world's largest continuously conducted health survey, administe
 
 | Classification | Count |
 |---------------|-------|
-| Precondition ALWAYS | 121 |
-| Precondition CONDITIONAL | 60 |
+| Precondition ALWAYS | 105 |
+| Precondition CONDITIONAL | 76 |
 | Precondition NEVER | 0 |
 | Postcondition NONE | 180 |
 | Postcondition CONSTRAINING | 1 (diabetes diagnosis age) |
 
-**No items are unreachable.** All 181 items have at least one valid path. The 121 ALWAYS items are core questions asked of all respondents. The 60 CONDITIONAL items are gated by chronic condition flags, smoking status, alcohol use, and other computed variables.
+**No items are unreachable.** All 181 items have at least one valid path. The 105 ALWAYS items are core questions asked of all respondents (health status, healthy days, chronic conditions, demographics). The 76 CONDITIONAL items are gated by block-level preconditions (optional module membership) and item-level conditions (chronic condition flags, smoking status, alcohol use, and other computed variables).
 
 ## Problems Exposed by Declarative Conversion
 
@@ -157,9 +157,9 @@ The split is **arguably better** (simpler per-question logic) but means the QML 
 
 The BRFSS has **no dependency cycles**. All variable flow is forward-only: core sections set disease flags, and optional modules consume them. There is no feedback where an optional module's response changes a core variable.
 
-### High ALWAYS-to-CONDITIONAL Ratio (121:60)
+### High ALWAYS-to-CONDITIONAL Ratio (105:76)
 
-Two-thirds of items (121 of 181) are ALWAYS -- asked of every respondent. This reflects the BRFSS's design as a broad surveillance instrument where most questions are universal. The 60 CONDITIONAL items are concentrated in:
+Over half of items (105 of 181) are ALWAYS -- asked of every respondent. This reflects the BRFSS's design as a broad surveillance instrument where most questions are universal. The 76 CONDITIONAL items are concentrated in:
 - Disease-specific follow-ups (diabetes insulin/monitoring, asthma current status)
 - Tobacco use cascades (current smoking → quit attempts; ever e-cig → current e-cig)
 - Alcohol consumption details (any drinking → frequency/amount/binge)
@@ -169,9 +169,9 @@ Two-thirds of items (121 of 181) are ALWAYS -- asked of every respondent. This r
 
 Only one item (`q_diabage`) has a postcondition -- validating that diabetes diagnosis age is between 1 and 97. This is the only numeric range validation in the entire questionnaire. The BRFSS generally relies on CATI system validation rather than questionnaire-level constraints, which means the QML has minimal self-validation capability.
 
-### 121 Connected Components
+### 104 Connected Components
 
-The 121 connected components match the 121 ALWAYS items, indicating that most conditional chains are short (1-2 items gated by a single flag). The BRFSS's flat architecture -- many independent questions with minimal inter-question dependencies -- creates a highly disconnected dependency graph.
+The 104 connected components reflect the BRFSS's flat architecture -- many independent questions with minimal inter-question dependencies create a highly disconnected dependency graph. Most conditional chains are short (1-2 items gated by a single flag).
 
 ## Impact Assessment
 

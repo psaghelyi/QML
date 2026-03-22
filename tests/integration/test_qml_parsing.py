@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Integration tests for QML parsing and Z3 transformation.
+"""Integration tests for QML parsing, block precondition propagation, and Z3 transformation.
 
-This test suite verifies the complete pipeline from QML files to Z3 constraints:
-1. QMLLoader parses YAML files correctly
-2. QMLState is initialized with correct structure
-3. StaticBuilder generates Z3 constraints from conditions
-4. QMLTopology discovers dependencies and detects cycles
-5. ItemClassifier produces correct classifications
+Tests the complete pipeline from QML files to Z3 constraints:
+- QMLLoader parses YAML files and flattens nested block/item structure
+- Block-level preconditions propagate to enclosed items during flattening
+- Items with existing preconditions receive block preconditions prepended
+- Scalar predicates (bool, int, float) at block level are normalized to strings
+- QMLState is initialized with correct flat structure and blockId references
+- StaticBuilder generates Z3 constraints including inherited block preconditions
+- QMLTopology discovers dependencies from block-inherited preconditions
+- ItemClassifier produces correct classifications for block-conditioned items
 
-All tests use real QML fixture files in tests/integration/fixtures/.
+These integration tests use real QML fixture files and inline QML strings to verify
+that block precondition inheritance works correctly through the entire pipeline, from
+YAML parsing through Z3 constraint generation to item classification.
 """
 
 import unittest
@@ -486,6 +491,263 @@ class TestEndToEndPipeline(unittest.TestCase):
         components = topology.get_components()
         # Note: components may vary based on exact dependency structure
         self.assertGreaterEqual(len(components), 1)
+
+
+@pytest.mark.integration
+class TestBlockPreconditionPropagation(unittest.TestCase):
+    """Tests for block-level precondition inheritance by enclosed items."""
+
+    def _load_from_string(self, qml_content: str) -> QMLState:
+        loader = QMLLoader(schema_path=None)
+        data = loader.load_from_string(qml_content)
+        return QMLState(data)
+
+    def test_block_precondition_inherited_by_items_without_preconditions(self):
+        """Items without their own preconditions inherit the block's preconditions."""
+        state = self._load_from_string("""
+questionnaire:
+  title: Block Inheritance Test
+  blocks:
+    - id: conditional_block
+      precondition:
+        - predicate: "q_gate.outcome == 1"
+      items:
+        - id: q_a
+          kind: Question
+          title: Question A
+        - id: q_b
+          kind: Question
+          title: Question B
+""")
+        q_a = state.get_item("q_a")
+        q_b = state.get_item("q_b")
+
+        self.assertEqual(len(q_a["precondition"]), 1)
+        self.assertEqual(q_a["precondition"][0]["predicate"], "q_gate.outcome == 1")
+
+        self.assertEqual(len(q_b["precondition"]), 1)
+        self.assertEqual(q_b["precondition"][0]["predicate"], "q_gate.outcome == 1")
+
+    def test_block_precondition_prepended_to_item_preconditions(self):
+        """Block preconditions are prepended before item's own preconditions."""
+        state = self._load_from_string("""
+questionnaire:
+  title: Prepend Test
+  blocks:
+    - id: filtered_block
+      precondition:
+        - predicate: "q_gate.outcome == 1"
+          hint: Block-level gate
+      items:
+        - id: q_detail
+          kind: Question
+          title: Detail question
+          precondition:
+            - predicate: "q_other.outcome > 5"
+              hint: Item-level filter
+""")
+        q_detail = state.get_item("q_detail")
+
+        # Block precondition first, then item precondition
+        self.assertEqual(len(q_detail["precondition"]), 2)
+        self.assertEqual(q_detail["precondition"][0]["predicate"], "q_gate.outcome == 1")
+        self.assertEqual(q_detail["precondition"][0]["hint"], "Block-level gate")
+        self.assertEqual(q_detail["precondition"][1]["predicate"], "q_other.outcome > 5")
+        self.assertEqual(q_detail["precondition"][1]["hint"], "Item-level filter")
+
+    def test_block_without_precondition_does_not_affect_items(self):
+        """Items in blocks without preconditions are unchanged."""
+        state = self._load_from_string("""
+questionnaire:
+  title: No Block Precondition Test
+  blocks:
+    - id: plain_block
+      items:
+        - id: q_plain
+          kind: Question
+          title: Plain question
+        - id: q_with_own
+          kind: Question
+          title: Has own precondition
+          precondition:
+            - predicate: "q_plain.outcome > 0"
+""")
+        q_plain = state.get_item("q_plain")
+        q_with_own = state.get_item("q_with_own")
+
+        # No precondition added
+        self.assertFalse(q_plain.get("precondition"))
+
+        # Item's own precondition preserved, no extras
+        self.assertEqual(len(q_with_own["precondition"]), 1)
+        self.assertEqual(q_with_own["precondition"][0]["predicate"], "q_plain.outcome > 0")
+
+    def test_multiple_blocks_mixed_preconditions(self):
+        """Only items in blocks with preconditions inherit them."""
+        state = self._load_from_string("""
+questionnaire:
+  title: Mixed Blocks Test
+  blocks:
+    - id: open_block
+      items:
+        - id: q_open
+          kind: Question
+          title: Open question
+    - id: gated_block
+      precondition:
+        - predicate: "q_open.outcome == 1"
+      items:
+        - id: q_gated
+          kind: Question
+          title: Gated question
+""")
+        q_open = state.get_item("q_open")
+        q_gated = state.get_item("q_gated")
+
+        self.assertFalse(q_open.get("precondition"))
+        self.assertEqual(len(q_gated["precondition"]), 1)
+        self.assertEqual(q_gated["precondition"][0]["predicate"], "q_open.outcome == 1")
+
+    def test_multiple_block_preconditions_all_propagated(self):
+        """All block-level preconditions propagate to each item."""
+        state = self._load_from_string("""
+questionnaire:
+  title: Multi Precondition Test
+  blocks:
+    - id: multi_gate
+      precondition:
+        - predicate: "q_gate1.outcome == 1"
+        - predicate: "q_gate2.outcome == 1"
+      items:
+        - id: q_inner
+          kind: Question
+          title: Inner question
+""")
+        q_inner = state.get_item("q_inner")
+
+        self.assertEqual(len(q_inner["precondition"]), 2)
+        self.assertEqual(q_inner["precondition"][0]["predicate"], "q_gate1.outcome == 1")
+        self.assertEqual(q_inner["precondition"][1]["predicate"], "q_gate2.outcome == 1")
+
+    def test_block_scalar_predicate_normalization(self):
+        """Block-level scalar predicates (bool) are normalized to strings."""
+        state = self._load_from_string("""
+questionnaire:
+  title: Block Normalization Test
+  blocks:
+    - id: always_block
+      precondition:
+        - predicate: true
+      items:
+        - id: q_always
+          kind: Question
+          title: Always shown
+""")
+        q_always = state.get_item("q_always")
+
+        self.assertEqual(len(q_always["precondition"]), 1)
+        self.assertEqual(q_always["precondition"][0]["predicate"], "True")
+        self.assertIsInstance(q_always["precondition"][0]["predicate"], str)
+
+    def test_block_preconditions_stripped_from_block_metadata(self):
+        """Flattened block metadata retains preconditions but not items."""
+        state = self._load_from_string("""
+questionnaire:
+  title: Block Metadata Test
+  blocks:
+    - id: gated
+      title: Gated Block
+      precondition:
+        - predicate: "x == 1"
+      items:
+        - id: q1
+          kind: Question
+          title: Q1
+""")
+        blocks = state.get_blocks()
+        self.assertEqual(len(blocks), 1)
+
+        block = blocks[0]
+        self.assertNotIn("items", block)
+        self.assertEqual(block["id"], "gated")
+        self.assertIn("precondition", block)
+
+
+@pytest.mark.integration
+@pytest.mark.z3
+class TestBlockPreconditionPipeline(unittest.TestCase):
+    """Tests that block preconditions flow through to Z3 constraints and classification."""
+
+    def test_block_precondition_creates_dependencies(self):
+        """Block-inherited preconditions create item dependencies in StaticBuilder."""
+        state = load_qml_fixture("block_preconditions.qml")
+        builder = StaticBuilder(state)
+
+        deps = builder.get_item_dependencies()
+
+        # q_employed inherits block precondition referencing q_age
+        self.assertIn("q_age", deps.get("q_employed", set()))
+
+        # q_job_title has block precondition (q_age) + own precondition (q_employed)
+        q_job_deps = deps.get("q_job_title", set())
+        self.assertIn("q_age", q_job_deps)
+        self.assertIn("q_employed", q_job_deps)
+
+        # q_retired inherits block precondition referencing q_age
+        self.assertIn("q_age", deps.get("q_retired", set()))
+
+        # q_country in screening block has no preconditions → no deps
+        self.assertEqual(len(deps.get("q_country", set())), 0)
+
+    def test_block_precondition_topological_order(self):
+        """Block-inherited dependencies are respected in topological order."""
+        state = load_qml_fixture("block_preconditions.qml")
+        builder = StaticBuilder(state)
+        topology = QMLTopology(state, builder)
+
+        order = topology.get_topological_order()
+        self.assertFalse(topology.has_cycles)
+
+        # q_age must come before all employment and retirement items
+        age_idx = order.index("q_age")
+        self.assertLess(age_idx, order.index("q_employed"))
+        self.assertLess(age_idx, order.index("q_job_title"))
+        self.assertLess(age_idx, order.index("q_retired"))
+
+        # q_employed must come before q_job_title (item-level dep)
+        self.assertLess(order.index("q_employed"), order.index("q_job_title"))
+
+    def test_block_precondition_item_classification(self):
+        """Items with block-inherited preconditions are classified as CONDITIONAL."""
+        state = load_qml_fixture("block_preconditions.qml")
+        builder = StaticBuilder(state)
+        classifier = ItemClassifier(builder)
+
+        # Screening items (no block precondition) → ALWAYS
+        result_age = classifier.classify_item("q_age")
+        self.assertEqual(result_age["precondition"]["status"], "ALWAYS")
+
+        result_country = classifier.classify_item("q_country")
+        self.assertEqual(result_country["precondition"]["status"], "ALWAYS")
+
+        # Employment items (block precondition: q_age.outcome <= 2) → CONDITIONAL
+        result_employed = classifier.classify_item("q_employed")
+        self.assertEqual(result_employed["precondition"]["status"], "CONDITIONAL")
+
+        # Retirement item (block precondition: q_age.outcome == 3) → CONDITIONAL
+        result_retired = classifier.classify_item("q_retired")
+        self.assertEqual(result_retired["precondition"]["status"], "CONDITIONAL")
+
+    def test_block_precondition_merged_item_has_combined_preconditions(self):
+        """q_job_title has both block and item preconditions in the loaded state."""
+        state = load_qml_fixture("block_preconditions.qml")
+
+        q_job = state.get_item("q_job_title")
+        self.assertEqual(len(q_job["precondition"]), 2)
+        # Block precondition first
+        self.assertEqual(q_job["precondition"][0]["predicate"], "q_age.outcome <= 2")
+        # Item precondition second
+        self.assertEqual(q_job["precondition"][1]["predicate"], "q_employed.outcome == 1")
 
 
 if __name__ == "__main__":

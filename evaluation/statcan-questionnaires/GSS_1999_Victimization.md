@@ -1,7 +1,7 @@
 # GSS Cycle 13 - Victimization Survey (1999): Declarative Conversion Analysis
 
 **Source:** Statistics Canada, General Social Survey Cycle 13, Catalogue no. 12M0013GPE, Appendix B (158 pages)
-**QML File:** `shared/questionnaires/GSS_1999_Victimization.qml`
+**QML File:** `evaluation/statcan-questionnaires/GSS_1999_Victimization.qml`
 **Date:** 2026-03-19
 
 ## Objective
@@ -57,11 +57,12 @@ These were deliberate simplifications in the QML conversion to achieve a structu
 |--------|-------|
 | Items | 252 |
 | Blocks | 12 |
-| Preconditions | 138 |
+| Preconditions | 221 |
 | Postconditions | 1 |
 | Variables | 16 |
+| Dependencies | 1438 |
 | Cycles | **0** |
-| Connected Components | 84 |
+| Connected Components | 22 |
 | Structural Validity | `true` |
 | Issues | **0** |
 
@@ -69,8 +70,8 @@ These were deliberate simplifications in the QML conversion to achieve a structu
 
 | Classification | Count | Meaning |
 |---------------|-------|---------|
-| ALWAYS reachable | 114 | Item shown to every respondent |
-| CONDITIONAL | 138 | Item shown based on prior responses |
+| ALWAYS reachable | 31 | Item shown to every respondent |
+| CONDITIONAL | 221 | Item shown based on prior responses |
 | NEVER reachable | 0 | Dead code (unreachable items) |
 | CONSTRAINING postcondition | 1 | `v29_oldest_age >= v28_youngest_age` |
 | INFEASIBLE postcondition | 0 | Impossible validation rules |

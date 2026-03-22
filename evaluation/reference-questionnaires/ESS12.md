@@ -1,7 +1,7 @@
 # ESS Round 12 Source Questionnaire: Declarative Conversion Analysis
 
 **Source:** European Social Survey ERIC, ESS Round 12 Source Questionnaire, 105 pages
-**QML File:** `evaluation/ESS12-source-questionnaire.qml`
+**QML File:** `evaluation/reference-questionnaires/ESS12-source-questionnaire.qml`
 **Date:** 2026-03-19 (updated with corrections)
 
 ## Objective

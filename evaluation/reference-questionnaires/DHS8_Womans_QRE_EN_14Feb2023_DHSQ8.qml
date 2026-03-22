@@ -289,6 +289,9 @@ questionnaire:
             min: 15
             max: 49
             right: "years"
+          codeBlock: |
+            if q111_age.outcome is not None and q111_age.outcome <= 24:
+                is_young_woman = 1
 
         - id: q112_health
           kind: Question
@@ -1741,12 +1744,12 @@ questionnaire:
             if q455_post_facility_check.outcome == 1:
                 post_facility_check_mother = 1
 
-        - id: q460_home_birth_check_baby
+        - id: q460_post_facility_check_baby
           kind: Question
-          title: "After (NAME) was born, did any health care provider or a traditional birth attendant check on (NAME)'s health?"
+          title: "After (NAME) left the facility, did any health care provider check on (NAME)'s health?"
           precondition:
             - predicate: preg_outcome_type == 1
-            - predicate: facility_birth == 0
+            - predicate: facility_birth == 1
           input:
             control: Radio
             labels:
@@ -1754,7 +1757,7 @@ questionnaire:
               2: "No"
               8: "Don't know"
           codeBlock: |
-            if q460_home_birth_check_baby.outcome == 1:
+            if q460_post_facility_check_baby.outcome == 1:
                 home_birth_check_baby = 1
 
         - id: q464_postnatal_check_mother
@@ -1775,7 +1778,7 @@ questionnaire:
           title: "After (NAME) was born, did any health care provider or a traditional birth attendant check on (NAME)'s health? For example, someone examining (NAME), checking the cord, or talking to you about how to care for (NAME)."
           precondition:
             - predicate: preg_outcome_type == 1
-            - predicate: facility_birth == 1
+            - predicate: facility_birth == 0
           input:
             control: Radio
             labels:
@@ -2383,8 +2386,6 @@ questionnaire:
         - id: q622_breathing
           kind: Question
           title: "Has (NAME) had fast, short, rapid breaths or difficulty breathing at any time in the last 2 weeks?"
-          precondition:
-            - predicate: child_had_cough == 1
           input:
             control: Radio
             labels:
@@ -3555,6 +3556,7 @@ questionnaire:
           title: "Can people reduce their chance of getting HIV by having just one uninfected sex partner who has no other sex partners?"
           precondition:
             - predicate: heard_hiv == 1
+            - predicate: is_young_woman == 1
           input:
             control: Radio
             labels:
@@ -3567,6 +3569,7 @@ questionnaire:
           title: "Can people get HIV from mosquito bites?"
           precondition:
             - predicate: heard_hiv == 1
+            - predicate: is_young_woman == 1
           input:
             control: Radio
             labels:
@@ -3579,6 +3582,7 @@ questionnaire:
           title: "Can people reduce their chance of getting HIV by using a condom every time they have sex?"
           precondition:
             - predicate: heard_hiv == 1
+            - predicate: is_young_woman == 1
           input:
             control: Radio
             labels:
@@ -3591,6 +3595,7 @@ questionnaire:
           title: "Can people get HIV by sharing food with a person who has HIV?"
           precondition:
             - predicate: heard_hiv == 1
+            - predicate: is_young_woman == 1
           input:
             control: Radio
             labels:
@@ -3603,6 +3608,7 @@ questionnaire:
           title: "Is it possible for a healthy-looking person to have HIV?"
           precondition:
             - predicate: heard_hiv == 1
+            - predicate: is_young_woman == 1
           input:
             control: Radio
             labels:

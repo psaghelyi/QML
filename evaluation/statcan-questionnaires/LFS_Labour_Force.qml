@@ -374,6 +374,7 @@ questionnaire:
             labels:
               1: "Employee"
               2: "Self-employed"
+              3: "Working in a family business without pay"
           codeBlock: |
             if q110_class_of_worker.outcome == 1:
               is_employee = 1

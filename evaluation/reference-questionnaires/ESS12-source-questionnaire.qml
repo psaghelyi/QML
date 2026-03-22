@@ -17,6 +17,7 @@ questionnaire:
     has_partner_in_household = 0
     has_children_in_household = 0
     b16_multiple = 0
+    b45_multiple = 0
     partner_in_paid_work = 0
     partner_had_paid_work = 0
     discriminated = 0
@@ -1293,7 +1294,7 @@ questionnaire:
           codeBlock: |
             if q_b16.outcome % 2 == 1:
                 in_paid_work = 1
-            if q_b16.outcome >= 3:
+            if q_b16.outcome > 0 and (q_b16.outcome & (q_b16.outcome - 1)) != 0:
                 b16_multiple = 1
 
         - id: q_b17
@@ -1673,12 +1674,14 @@ questionnaire:
           codeBlock: |
             if q_b45.outcome % 2 == 1:
                 partner_in_paid_work = 1
+            if q_b45.outcome > 0 and (q_b45.outcome & (q_b45.outcome - 1)) != 0:
+                b45_multiple = 1
 
         - id: q_b46
           kind: Question
           title: "And which of these descriptions best describes your husband, wife, or partner's situation in the last 7 days? (Please select only one)"
           precondition:
-            - predicate: has_partner_in_household == 1 and q_b45.outcome >= 3
+            - predicate: has_partner_in_household == 1 and b45_multiple == 1
           input:
             control: Dropdown
             labels:

@@ -2030,6 +2030,8 @@ questionnaire:
         - id: q713_tested_hiv
           kind: Question
           title: "Have you ever been tested for HIV?"
+          precondition:
+            - predicate: heard_hiv == 1
           input:
             control: Radio
             labels:
@@ -2409,7 +2411,6 @@ questionnaire:
           title: "Some men are medically circumcised, that is, the foreskin is completely removed from the penis by a healthcare worker. Are you medically circumcised?"
           precondition:
             - predicate: circumcised_yes == 1
-            - predicate: trad_circumcised == 0
           input:
             control: Radio
             labels:

@@ -530,12 +530,13 @@ questionnaire:
               1: "Yes"
               3: "No"
 
-        # B22: difficulty being understood when speaking
+        # B22: difficulty being understood when speaking (asked only when B21=No)
+        # PDF: B21=Yes -> go to B23 (skip B22); B21=No -> B22
         - id: qb22
           kind: Question
           title: "Because of a condition or health problem, does the child have any difficulty making himself/herself understood when speaking?"
           precondition:
-            - predicate: qb21.outcome == 1
+            - predicate: qb21.outcome == 3
           codeBlock: |
             if qb22.outcome == 1:
                 limitation_communicating = 1
@@ -545,12 +546,12 @@ questionnaire:
               1: "Yes"
               3: "No"
 
-        # B23: How much difficulty speaking
+        # B23: How much difficulty speaking (B21=Yes path only)
         - id: qb23
           kind: Question
           title: "How much difficulty does he/she have speaking?"
           precondition:
-            - predicate: qb21.outcome == 1 and qb22.outcome == 1
+            - predicate: qb21.outcome == 1
           input:
             control: Radio
             labels:
@@ -558,24 +559,26 @@ questionnaire:
               2: "Child has a lot of difficulty"
               3: "Child cannot speak"
 
-        # B24: difficulty being understood
+        # B24: difficulty being understood (B21=Yes path, B23 != cannot speak)
         - id: qb24
           kind: Question
           title: "Because of a condition or health problem, does the child have any difficulty making himself/herself understood when speaking?"
           precondition:
-            - predicate: qb21.outcome == 1 and qb22.outcome == 1
+            - predicate: qb21.outcome == 1 and qb23.outcome != 3
           input:
             control: Radio
             labels:
               1: "Yes"
               3: "No"
 
-        # B25: How well understood when speaking
+        # B25: How well understood when speaking (both paths)
+        # Path A: B21=Yes -> B23 (not "cannot speak") -> B24 -> B25
+        # Path B: B21=No -> B22=Yes -> B25
         - id: qb25
           kind: QuestionGroup
           title: "How well do you feel the child is able to make himself/herself understood when speaking with:"
           precondition:
-            - predicate: qb21.outcome == 1 and qb22.outcome == 1
+            - predicate: (qb21.outcome == 1 and qb23.outcome != 3) or qb22.outcome == 1
           questions:
             - "His/her family members?"
             - "His/her friends?"
@@ -587,12 +590,12 @@ questionnaire:
               2: "Partially"
               3: "Not at all"
 
-        # B26: Does he/she use communication methods
+        # B26: Does he/she use communication methods (any communicating limitation)
         - id: qb26
           kind: QuestionGroup
           title: "Does he/she use:"
           precondition:
-            - predicate: qb21.outcome == 1 and qb22.outcome == 1
+            - predicate: qb21.outcome == 1 or qb22.outcome == 1
           questions:
             - "Sign language, such as ASL or LSQ"
             - "Other form of communication"
@@ -607,7 +610,7 @@ questionnaire:
           kind: Question
           title: "Does the child USE any specialized equipment for children who have difficulty speaking or making themselves understood, for example, a voice amplifier or Blissboard?"
           precondition:
-            - predicate: speaking_difficulty == 1
+            - predicate: limitation_communicating == 1
           codeBlock: |
             if qb27.outcome == 1:
                 use_aid_communicating = 1
@@ -639,7 +642,7 @@ questionnaire:
           kind: Question
           title: "Are there any aids or specialized equipment for children who have difficulty speaking or making themselves understood that the child CURRENTLY needs, but does not have?"
           precondition:
-            - predicate: speaking_difficulty == 1
+            - predicate: limitation_communicating == 1
           codeBlock: |
             if qb29.outcome == 1:
                 need_aid_communicating = 1

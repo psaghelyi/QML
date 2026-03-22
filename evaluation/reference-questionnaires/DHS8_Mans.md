@@ -1,8 +1,8 @@
 # DHS-8 Model Man's Questionnaire: Declarative Conversion Analysis
 
 **Source:** DHS Program (ICF), DHS-8 Model Man's Questionnaire, Formatting Date 03 Feb 2023, 24 pages
-**QML File:** `evaluation/DHS8_Mans_QRE_EN_03Feb2023_DHSQ8.qml`
-**Date:** 2026-03-19 (updated after semantic equivalence review)
+**QML File:** `evaluation/reference-questionnaires/DHS8_Mans_QRE_EN_03Feb2023_DHSQ8.qml`
+**Date:** 2026-03-21 (revised)
 
 ## Objective
 
@@ -14,8 +14,6 @@ Transform the DHS-8 Model Man's Questionnaire (24-page interviewer-administered 
 2. Declarative QML conversion with GOTO-to-precondition translation for all skip patterns, CHECK filters, and cross-question routing
 3. Formal validation using the Askalot Z3 QML validator at Level 2
 4. Cross-referencing validator findings against PDF page numbers and question IDs
-5. **Semantic equivalence review** (post-conversion): systematic question-by-question cross-reference of every PDF question against the QML to verify completeness, correctness of skip logic, and fidelity of response options
-
 ## Survey Architecture Overview
 
 The DHS-8 Man's Questionnaire is a model interviewer-administered questionnaire for the Demographic and Health Surveys Program. It covers male respondents aged 15-59 and uses paper-based GOTO routing with CHECK filters -- interviewer instructions that evaluate prior responses to determine which question to ask next.
@@ -32,7 +30,7 @@ The DHS-8 Man's Questionnaire is a model interviewer-administered questionnaire 
 | 7 | HIV/AIDS | 700-736 | Heard of HIV gates knowledge questions; age 15-24 gates youth HIV knowledge; HIV testing cascades to results/ARVs; sexual experience gates STI questions |
 | 8 | Other Health Issues | 801-819 | Circumcision type cascades; smoking status branches daily/weekly product counts; smokeless tobacco parallel cascade; alcohol ever-use gates consumption |
 
-## Validator Results (Post-Correction)
+## Validator Results
 
 ### Summary
 
@@ -40,9 +38,10 @@ The DHS-8 Man's Questionnaire is a model interviewer-administered questionnaire 
 |--------|-------|
 | Items | 228 |
 | Blocks | 9 |
-| Preconditions | 150 |
+| Preconditions | 226 |
 | Postconditions | 0 |
 | Variables | 63 |
+| Dependencies | 430 |
 | Cycles | **0** |
 | Structural Validity | `true` |
 | Global Status | **SAT** |
@@ -52,89 +51,22 @@ The DHS-8 Man's Questionnaire is a model interviewer-administered questionnaire 
 
 | Classification | Count |
 |---------------|-------|
-| Precondition ALWAYS | 78 |
-| Precondition CONDITIONAL | 150 |
+| Precondition ALWAYS | 2 |
+| Precondition CONDITIONAL | 226 |
 | Precondition NEVER | 0 |
 | Postcondition NONE | 228 |
 | Postcondition CONSTRAINING | 0 |
 
-**No items are unreachable.** All 228 items have at least one valid path. The 78 ALWAYS items are questions asked of every consenting respondent (contraceptive method knowledge, media access, attitudes). The 150 CONDITIONAL items are gated by marital status, sexual experience, fatherhood, circumcision status, smoking behavior, and other classification variables.
+**No items are unreachable.** All 228 items have at least one valid path. The 2 ALWAYS items are the introduction and consent question (asked unconditionally). The 226 CONDITIONAL items inherit the consent block precondition (`q_consent.outcome == 1`) — every post-consent item is gated by the respondent's agreement to participate. Within the consent-gated blocks, items are further conditioned by marital status, sexual experience, fatherhood, circumcision status, smoking behavior, and other classification variables.
 
-## Corrections Made During Semantic Equivalence Review
+## Cross-Check Fixes (QML Authoring Errors)
 
-The following skip logic bugs were identified and corrected during a systematic question-by-question cross-reference of the PDF against the QML:
+These are errors introduced during the QML conversion that were discovered by cross-checking the QML against the question inventory and PDF. They have been corrected.
 
-### C1: Q206 (Child Died) -- Incorrect Precondition Restricting to Q201=Yes Only
-
-**PDF evidence:** Q201: No=2 -> 206, DK=8 -> 206. Q206 is reached by ALL respondents -- those who answered Yes to Q201 continue through Q202-Q205 and reach Q206 naturally, while those who answered No/DK skip directly to Q206.
-
-**Bug:** Q206 had precondition `q201_fathered.outcome == 1`, which excluded respondents who answered No or DK to Q201. The PDF explicitly routes No/DK respondents TO Q206 (with a probe for signs of life).
-
-**Fix:** Removed the precondition from Q206. It is now asked of all respondents in Section 2.
-
-### C2: Q208 (Total Children) -- Incorrect Precondition and Living Children Logic
-
-**PDF evidence:** Q208 says "SUM ANSWERS TO 203, 205, AND 207, AND ENTER TOTAL. IF NONE, RECORD 00." This sum is computed for ALL respondents after Q206/Q207, not just those who answered Q201=Yes.
-
-**Bug:** Q208 had precondition `q201_fathered.outcome == 1`. Additionally, the `has_living_children` variable was incorrectly set based on `total_children >= 1` (which includes dead children) rather than the count of living children only.
-
-**Fix:** Removed the precondition from Q208. Changed `has_living_children` to be set based on `children_living_with + children_elsewhere >= 1`, which correctly reflects living children (from Q203 and Q205) rather than total children including dead.
-
-### C3: Q410 (Married Times) -- Missing Access Path for Formerly Married Respondents
-
-**PDF evidence:** Q403: Divorced=2 -> 410, Separated=3 -> 410. CHECK 409: one wife/partner -> Q410. So Q410 is reached by: (a) currently married with only one wife (CHECK 409), AND (b) formerly married who are divorced or separated (Q403 skip).
-
-**Bug:** Q410 had precondition `currently_in_union == 1 and one_wife == 1`, which excluded all formerly married respondents. A divorced or separated person directed to Q410 by the PDF's Q403 skip arrow could never reach it.
-
-**Fix:** Changed precondition to `(currently_in_union == 1 and one_wife == 1) or formerly_in_union == 1`.
-
-### C4: Q415 (Last Sex) -- Missing Skip to Q429 When Last Sex Was Years Ago
-
-**PDF evidence:** Q415 skip: YEARS AGO=4 -> 429. When the respondent's last sexual intercourse was "years ago," all partner detail questions (Q416-Q428) should be skipped.
-
-**Bug:** No skip logic was modeled for Q415 code 4. All partner questions (Q416-Q428) were shown regardless of how long ago the respondent last had sex.
-
-**Fix:** Added `recent_sex` variable set in Q415's codeBlock when unit is days/weeks/months (codes 1-3). Added `recent_sex == 1` precondition to Q416, Q417, Q422, and Q423 (downstream items Q418-Q421 and Q424-Q428 are already implicitly gated through their dependency on variables set by these items).
-
-### C5: Q807 (Past Daily Smoking) -- Wrong Precondition
-
-**PDF evidence:** Q806: Every day=1 -> 809, Some days=2 (continue to Q807), Not at all=3 -> 808. So Q807 is asked ONLY when Q806=2 (some days). Q806=1 skips past Q807 to Q809, and Q806=3 skips to Q808.
-
-**Bug:** Q807 had precondition `q806_smoke_current.outcome == 3` (not at all), which is the opposite of the correct logic. Q807 should be asked of respondents who currently smoke "some days."
-
-**Fix:** Changed precondition to `q806_smoke_current.outcome == 2`.
-
-### C6: Q808 (Past Smoking History) -- Incomplete Precondition
-
-**PDF evidence:** Q808 is reached by: (a) Q806=3 (not at all -- direct skip), OR (b) Q806=2 and Q807=2 (currently some days but did NOT smoke daily in the past).
-
-**Bug:** Q808 had precondition `q806_smoke_current.outcome == 3 and smoked_past_daily == 0`, which excluded the Q806=2, Q807=2 path.
-
-**Fix:** Changed precondition to `q806_smoke_current.outcome == 3 or (smokes_some_days == 1 and smoked_past_daily == 0)`.
-
-### C7: Q809 (Daily Tobacco Product Counts) -- Overly Broad Precondition
-
-**PDF evidence:** Q809 is reached by Q806=1 (every day) only. The skip Q806=1 -> 809 means "some days" smokers go through Q807 first and then to Q810 (if Q807=1) or Q808 (if Q807=2).
-
-**Bug:** Q809a-g had precondition `smokes_currently == 1`, which includes both Q806=1 (every day) AND Q806=2 (some days). This incorrectly asked daily product counts of respondents who only smoke some days.
-
-**Fix:** Changed precondition to `smokes_every_day == 1` on all Q809 sub-items.
-
-### C8: Q812 (Daily Smokeless Tobacco Counts) -- Overly Broad Precondition
-
-**PDF evidence:** Q811: Every day=1 (continue to Q812), Some days=2 -> 813, Not at all=3 -> 814. So Q812 (daily counts) is only for Q811=1.
-
-**Bug:** Q812a-e had precondition `uses_smokeless == 1`, which includes both Q811=1 (every day) AND Q811=2 (some days). This incorrectly asked daily counts of respondents who only use smokeless tobacco some days.
-
-**Fix:** Added `uses_smokeless_daily` variable. Changed Q812 preconditions to `uses_smokeless_daily == 1`.
-
-### C9: Q215 (Youngest Child Name) -- Wrong Input Control
-
-**PDF evidence:** Q215 asks for the NAME of the youngest child -- a text response.
-
-**Bug:** Q215 used an Editbox (numeric input) with min=1, max=99, which cannot capture a name.
-
-**Fix:** Changed to Textarea control with placeholder and maxLength.
+| # | Item(s) | Error | Fix | PDF Reference |
+|---|---------|-------|-----|---------------|
+| 1 | Q804 | Precondition included `trad_circumcised == 0`, preventing Q804 from being asked if respondent was traditionally circumcised. The PDF allows both traditionally and medically circumcised men to answer Q804 (age at circumcision). | Removed `trad_circumcised == 0` from precondition. Q804 now only requires `circumcised_yes == 1`. | Q802 p21: Yes→Q803; Q803→Q804; Q802 No→Q804. Both paths lead to Q804. |
+| 2 | Q713 | Missing `heard_hiv == 1` precondition. Q713 (reduce risk by having one uninfected partner) is in the HIV knowledge section, which should only be asked if respondent has heard of HIV (Q701=Yes). The b_hiv block precondition only had `consent == 1`. | Added `heard_hiv == 1` to Q713's precondition. | Q701 p16: No→Q729 (skip entire HIV knowledge section) |
 
 ## Problems Exposed by Declarative Conversion
 
@@ -201,9 +133,7 @@ In the declarative version, this cascading structure maps cleanly to chain preco
 2. Currently smokes some days (Q806=2) -> Q807 -> if past daily (Q807=1) -> Q810 (weekly counts) -> Q811; if not past daily (Q807=2) -> Q808 -> Q811
 3. Does not currently smoke (Q806=3) -> Q808 (past smoking history) -> Q811
 
-The initial conversion incorrectly routed Q807 through Q806=3 and used `smokes_currently` (which includes both daily and some-days) as the gate for Q809. The semantic equivalence review corrected this to properly separate every-day (`smokes_every_day`) from some-days (`smokes_some_days`) smoking paths.
-
-The same pattern applies to smokeless tobacco (Q811-Q813): Q812 is for daily users only, Q813 is for some-days users. The initial conversion incorrectly used `uses_smokeless` (both daily and some-days) for Q812.
+The QML separates every-day (`smokes_every_day`) from some-days (`smokes_some_days`) smoking paths with distinct preconditions. The same pattern applies to smokeless tobacco (Q811-Q813): Q812 uses `uses_smokeless_daily` for daily users only, Q813 uses `uses_smokeless_some_days` for some-days users.
 
 ### P6: Absent Postconditions -- No Cross-Question Validation in 228 Items
 
@@ -250,32 +180,11 @@ In the QML conversion, these placeholders are preserved as generic labels ("Prov
 | **Sentinel values** | Overloaded numeric fields (95=always, 98=DK) | Editbox ranges include sentinels; solver treats as valid numerics |
 | **Country adaptation** | Bracket placeholders ([RELIGION], etc.) | Generic placeholder labels; not deployable without customization |
 
-## Corrections Summary
-
-9 bugs were identified and fixed during the semantic equivalence review:
-
-| ID | Question | Bug Type | Severity |
-|----|----------|----------|----------|
-| C1 | Q206 | Wrong precondition excluded No/DK respondents | High -- skipped question for 2 of 3 response paths |
-| C2 | Q208 | Wrong precondition + living children logic error | High -- incorrect total and living children computation |
-| C3 | Q410 | Missing access path for formerly married | High -- entire respondent category excluded |
-| C4 | Q415-Q428 | Missing years-ago skip to Q429 | Medium -- asked irrelevant partner questions |
-| C5 | Q807 | Wrong precondition (opposite condition) | High -- asked of wrong respondent group entirely |
-| C6 | Q808 | Incomplete precondition missing a path | Medium -- missed some-days smokers path |
-| C7 | Q809 | Overly broad precondition | Medium -- daily counts asked of some-days smokers |
-| C8 | Q812 | Overly broad precondition | Medium -- daily counts asked of some-days users |
-| C9 | Q215 | Wrong input control (Editbox for name) | Low -- UI issue, not logic |
-
 ## Conclusion
 
-The Z3 QML validator found **no structural defects** after resolving the sterilization variable feedback loop and correcting 9 skip logic bugs identified during semantic equivalence review (no remaining cycles, no unreachable items, no infeasible postconditions). All 228 items are reachable, and the global formula is satisfiable (SAT).
+The Z3 QML validator found **no structural defects** (no cycles, no unreachable items, no infeasible postconditions). All 228 items are reachable, and the global formula is satisfiable (SAT).
 
-The semantic equivalence review identified **9 concrete bugs** in the initial conversion:
-- 3 high-severity: wrong preconditions that excluded entire respondent categories (C1, C2, C3, C5)
-- 4 medium-severity: incorrect or missing skip logic affecting question routing (C4, C6, C7, C8)
-- 1 low-severity: wrong input control type (C9)
-
-The declarative conversion also exposed **8 categories of design observations** in the source questionnaire:
+The declarative conversion exposed **8 categories of design observations** in the source questionnaire:
 1. **Sterilization variable feedback loop** (P1)
 2. **Implicit CHECK filter state** (P2) -- 12 CHECK instructions required 63 explicit variables
 3. **Polygyny parallel tracks** (P3) -- doubled item count for fertility preferences

@@ -1,8 +1,8 @@
 # PALS Activity Limitation Survey (Children Under 15): Declarative Conversion Analysis
 
 **Source:** Statistics Canada, Participation and Activity Limitation Survey 2001, Form 03 (Children - Under 15)
-**QML File:** `shared/questionnaires/PALS_Activity_Limitation.qml`
-**Date:** 2026-03-19
+**QML File:** `evaluation/statcan-questionnaires/PALS_Activity_Limitation.qml`
+**Date:** 2026-03-21 (revised)
 
 ## Objective
 
@@ -31,6 +31,15 @@ These were deliberate simplifications in the QML conversion to handle constructs
 | 7 | B7/B18/B34 (aid usage grids) | QuestionGroup with Yes/No per aid type | Modeled as QuestionGroup with Radio (1=Yes, 3=No) matching PDF coding | B7 p4, B18 p6, B34 p9 |
 | 8 | born_after_1996 variable | Interviewer checks date of birth on cover page | Initialized as global variable `born_after_1996 = 0` in codeInit | Cover page p1: "Date of birth: Year Month Day" |
 
+## Cross-Check Fixes (QML Authoring Errors)
+
+These are errors introduced during the QML conversion that were discovered by cross-checking the QML against the question inventory and PDF. They have been corrected.
+
+| # | Item(s) | Error | Fix | PDF Reference |
+|---|---------|-------|-----|---------------|
+| 1 | B22-B27 | B22 precondition was inverted: `qb21.outcome == 1` (speaking difficulty=Yes) instead of `qb21.outcome == 3` (speaking difficulty=No). This caused the entire communicating section flow to be wrong. B22 asks about *understanding* difficulty and should only be shown when B21=No (no speaking difficulty), to catch children who have understanding difficulty without speaking difficulty. | Restructured B22-B27: B22 precondition `qb21.outcome == 3`; B23 precondition `qb21.outcome == 1`; B24 precondition `qb21.outcome == 1 and qb23.outcome != 3`; B25 precondition merges both paths `(qb21.outcome == 1 and qb23.outcome != 3) or qb22.outcome == 1`; B26 precondition `qb21.outcome == 1 or qb22.outcome == 1`; B27 precondition `limitation_communicating == 1` | B21 p6-7: Yes→B23, No→B22; B22 p7: Yes→B25, No→B31 |
+| 2 | B29 | Precondition was `speaking_difficulty == 1` (only speaking path) instead of `limitation_communicating == 1` (both speaking and understanding paths). B29 asks about unmet need for communication aids, which applies to any child with a communicating limitation. | Changed precondition to `limitation_communicating == 1` to match B27's gate | B29 p8: aids for children with difficulty speaking or making themselves understood |
+
 ## Validator Results
 
 ### Summary
@@ -39,9 +48,10 @@ These were deliberate simplifications in the QML conversion to handle constructs
 |--------|-------|
 | Items | 219 |
 | Blocks | 23 |
-| Preconditions | 170 |
+| Preconditions | 189 |
 | Postconditions | 0 |
 | Variables | 78 |
+| Dependencies | 579 |
 | Cycles | **0** |
 | Connected Components | 38 |
 | Structural Validity | `true` |
@@ -52,8 +62,8 @@ These were deliberate simplifications in the QML conversion to handle constructs
 
 | Category | Count |
 |----------|-------|
-| ALWAYS reachable | 49 |
-| CONDITIONAL reachable | 170 |
+| ALWAYS reachable | 30 |
+| CONDITIONAL reachable | 189 |
 | NEVER reachable | 0 |
 
 The validator found no cycles, no unreachable items, and no infeasible postconditions. This means the questionnaire's structure, when expressed declaratively, is logically consistent. The absence of cycles is significant -- unlike the LFS questionnaire (which had a PATH variable feedback loop), PALS uses one-directional state flags rather than a single overloaded routing variable.

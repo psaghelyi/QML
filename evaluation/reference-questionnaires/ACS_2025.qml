@@ -2418,7 +2418,7 @@ questionnaire:
       title: "Person 1 - Not Working Last Week"
       precondition:
         - predicate: did_not_work == 1
-        - predicate: q_30b_any_work.outcome == 0
+        - predicate: q_30b_any_work.outcome == 2
       items:
         - id: q_36a_on_layoff
           kind: Question
@@ -2506,6 +2506,8 @@ questionnaire:
     # =========================================================================
     - id: b_person1_work_hours
       title: "Person 1 - Weeks and Hours Worked"
+      precondition:
+        - predicate: worked_any == 1 or last_worked_recent == 1
       items:
         - id: q_40a_worked_every_week
           kind: Question

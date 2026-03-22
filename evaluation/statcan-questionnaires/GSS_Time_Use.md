@@ -1,7 +1,7 @@
 # GSS Cycle 2: Time Use -- Declarative Conversion Analysis
 
 **Source:** Statistics Canada, General Social Survey 1986, Cycle 2: Time Use (GSS 2-2), Catalogue no. 8-4500-33.1
-**QML File:** `shared/questionnaires/GSS_Time_Use.qml`
+**QML File:** `evaluation/statcan-questionnaires/GSS_Time_Use.qml`
 **Date:** 2026-03-19
 
 ## Objective

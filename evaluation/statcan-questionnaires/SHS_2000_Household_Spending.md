@@ -1,7 +1,7 @@
 # SHS 2000 Household Spending Survey: Declarative Conversion Analysis
 
 **Source:** Statistics Canada, Catalogue no. 8-5400-77.1, Survey of Household Spending in 2000
-**QML File:** `shared/questionnaires/SHS_2000_Household_Spending.qml`
+**QML File:** `evaluation/statcan-questionnaires/SHS_2000_Household_Spending.qml`
 **Date:** 2026-03-19
 
 ## Objective
@@ -43,14 +43,15 @@ These were errors or design choices in the QML conversion, NOT problems in the o
 |--------|-------|
 | Items | 225 |
 | Blocks | 25 |
-| Preconditions | 87 |
+| Preconditions | 96 |
 | Postconditions | 0 |
 | Variables | 38 |
+| Dependencies | 161 |
 | Cycles | **0** |
-| Connected Components | 136 |
+| Connected Components | 127 |
 | Structural Validity | `true` |
-| Items ALWAYS reachable | 138 |
-| Items CONDITIONAL | 87 |
+| Items ALWAYS reachable | 129 |
+| Items CONDITIONAL | 96 |
 | Items NEVER reachable | 0 |
 | Items INFEASIBLE | 0 |
 
@@ -65,8 +66,8 @@ Unlike the LFS questionnaire which had a dependency cycle caused by the PATH var
 ### Classification Breakdown
 
 The 225 items break down as:
-- **138 ALWAYS reachable** (61%): Items asked of every respondent regardless of answers
-- **87 CONDITIONAL** (39%): Items gated by preconditions on prior answers
+- **129 ALWAYS reachable** (57%): Items asked of every respondent regardless of answers
+- **96 CONDITIONAL** (43%): Items gated by block-level preconditions (section membership) and item-level conditions on prior answers
 - **0 NEVER reachable** (0%): No dead code detected
 - **0 INFEASIBLE postconditions** (0%): No postconditions were defined (see P6 below)
 
